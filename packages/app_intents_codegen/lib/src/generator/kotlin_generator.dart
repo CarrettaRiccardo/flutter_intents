@@ -48,7 +48,10 @@ class KotlinGenerator {
     'notSupported': 'AppFunctionNotSupportedException',
     'disabled': 'AppFunctionDisabledException',
     'limitExceeded': 'AppFunctionLimitExceededException',
-    'handlerNotFound': 'AppFunctionFunctionNotFoundException',
+    // The function exists (KSP registered it); the app has not wired its Dart
+    // handler. An app-side problem, not a function the agent mis-named.
+    'handlerNotFound': 'AppFunctionAppUnknownException',
+    // Same class the dispatcher uses for a cancellation by the caller.
     'userCancelled': 'AppFunctionCancelledException',
   };
 

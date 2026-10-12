@@ -1967,6 +1967,10 @@ Future<Task> completeTaskIntentHandler({required String task}) async {
 }
 ```
 
+`details` も、標準メッセージコーデックでエンコードできる値（Map、List、文字列、数値、真偽値）
+であればそのまま届きます。エンコードできない値が含まれている場合は `details` が捨てられ、
+コードとメッセージだけが届きます。
+
 Android では、生成された `AppFunctionsBridge` がこのコードを対応する
 `androidx.appfunctions` の例外へ変換し、呼び出し元のエージェントはその例外を受け取ります:
 
@@ -1980,8 +1984,8 @@ Android では、生成された `AppFunctionsBridge` がこのコードを対�
 | `notSupported` | `AppFunctionNotSupportedException` |
 | `disabled` | `AppFunctionDisabledException` |
 | `limitExceeded` | `AppFunctionLimitExceededException` |
-| `handlerNotFound`（プラグインが送出） | `AppFunctionFunctionNotFoundException` |
-| `userCancelled` | `AppFunctionCancelledException` |
+| `handlerNotFound`（プラグインが送出） | `AppFunctionAppUnknownException`（関数自体は存在し、アプリ側のハンドラが未登録） |
+| `userCancelled` | `AppFunctionCancelledException`（ディスパッチャが呼び出し側のキャンセルにも使うクラス） |
 | 上記以外のコード | `AppFunctionAppUnknownException`（メッセージは `"<code>: <message>"`） |
 
 ハンドラから漏れたその他の例外は `execution_error` として報告され、最後の行に該当します。

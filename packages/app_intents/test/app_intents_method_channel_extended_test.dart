@@ -356,6 +356,33 @@ void main() {
       },
     );
 
+    test('keeps the code when the details cannot cross the channel', () async {
+      platform.registerIntentHandler('com.example.failing', (params) async {
+        throw AppIntentError.fromCode(
+          AppIntentErrorCode.notFound,
+          message: 'No task with id 42',
+          // The standard codec cannot encode a DateTime; the envelope would
+          // fail to encode and the native side would get an empty reply.
+          details: {'at': DateTime.now()},
+        );
+      });
+
+      final reply = await simulateIncomingMethodCall(channel, 'executeIntent', {
+        'identifier': 'com.example.failing',
+        'params': <String, dynamic>{},
+      });
+
+      expect(
+        () => const StandardMethodCodec().decodeEnvelope(reply!),
+        throwsA(
+          isA<PlatformException>()
+              .having((e) => e.code, 'code', 'notFound')
+              .having((e) => e.message, 'message', 'No task with id 42')
+              .having((e) => e.details, 'details', isNull),
+        ),
+      );
+    });
+
     test('reports a missing handler as handlerNotFound', () async {
       final reply = await simulateIncomingMethodCall(channel, 'executeIntent', {
         'identifier': 'com.example.unregistered',

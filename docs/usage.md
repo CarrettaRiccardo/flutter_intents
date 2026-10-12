@@ -2038,6 +2038,10 @@ Future<Task> completeTaskIntentHandler({required String task}) async {
 }
 ```
 
+`details` crosses too, as long as the standard message codec can encode it
+(maps, lists, strings, numbers, booleans). Otherwise it is dropped and only the
+code and message arrive.
+
 On Android the generated `AppFunctionsBridge` maps the code to the matching
 `androidx.appfunctions` exception, which is what the calling agent receives:
 
@@ -2051,8 +2055,8 @@ On Android the generated `AppFunctionsBridge` maps the code to the matching
 | `notSupported` | `AppFunctionNotSupportedException` |
 | `disabled` | `AppFunctionDisabledException` |
 | `limitExceeded` | `AppFunctionLimitExceededException` |
-| `handlerNotFound` (raised by the plugin) | `AppFunctionFunctionNotFoundException` |
-| `userCancelled` | `AppFunctionCancelledException` |
+| `handlerNotFound` (raised by the plugin) | `AppFunctionAppUnknownException` (the function exists; the app has not wired its handler) |
+| `userCancelled` | `AppFunctionCancelledException` (the class the dispatcher also uses for a caller cancellation) |
 | any other code | `AppFunctionAppUnknownException` with `"<code>: <message>"` |
 
 Any other exception escaping a handler is reported as `execution_error` and

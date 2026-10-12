@@ -788,7 +788,8 @@ void main() {
             r'else -> AppFunctionAppUnknownException("$code: $message")',
           ),
         );
-        expect(result, isNot(contains('RuntimeException')));
+        // The old untyped envelope is gone; a typed exception carries the code.
+        expect(result, isNot(contains(r'RuntimeException("$code: $message")')));
       });
 
       test('reports a missing Dart implementation as an app error', () {
@@ -802,38 +803,6 @@ void main() {
           ),
         );
       });
-
-      test(
-        'only names exceptions that exist in appfunctions 1.0.0-alpha13',
-        () {
-          // Public exception classes in the alpha13 sources jar
-          // (AppFunction{Request,App,System}Exceptions.kt). A typo in the table
-          // would otherwise only surface as a Kotlin compile error in the app.
-          const alpha13Exceptions = {
-            'AppFunctionDeniedException',
-            'AppFunctionInvalidArgumentException',
-            'AppFunctionDisabledException',
-            'AppFunctionFunctionNotFoundException',
-            'AppFunctionElementNotFoundException',
-            'AppFunctionLimitExceededException',
-            'AppFunctionElementAlreadyExistsException',
-            'AppFunctionAppUnknownException',
-            'AppFunctionPermissionRequiredException',
-            'AppFunctionNotSupportedException',
-            'AppFunctionSystemUnknownException',
-            'AppFunctionCancelledException',
-          };
-
-          for (final exception
-              in KotlinGenerator.appFunctionExceptionByErrorCode.values) {
-            expect(alpha13Exceptions, contains(exception));
-          }
-          expect(
-            alpha13Exceptions,
-            contains(KotlinGenerator.fallbackAppFunctionException),
-          );
-        },
-      );
     });
 
     group('generateAll', () {

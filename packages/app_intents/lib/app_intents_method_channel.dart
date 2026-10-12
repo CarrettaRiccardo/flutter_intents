@@ -133,8 +133,29 @@ class MethodChannelAppIntents extends AppIntentsPlatform {
       throw PlatformException(
         code: e.code,
         message: e.message,
-        details: e.details,
+        details: _encodableDetails(e),
       );
+    }
+  }
+
+  /// [e]'s details when the channel codec can carry them, otherwise null.
+  ///
+  /// The envelope is encoded after this handler has returned; a value the
+  /// codec rejects (a `DateTime`, an arbitrary object) would fail there and
+  /// reach the native side as an empty reply, losing the code along with the
+  /// details. Dropping the details keeps the code.
+  Object? _encodableDetails(AppIntentError e) {
+    final details = e.details;
+    if (details == null) return null;
+    try {
+      methodChannel.codec.encodeErrorEnvelope(
+        code: e.code,
+        message: e.message,
+        details: details,
+      );
+      return details;
+    } catch (_) {
+      return null;
     }
   }
 

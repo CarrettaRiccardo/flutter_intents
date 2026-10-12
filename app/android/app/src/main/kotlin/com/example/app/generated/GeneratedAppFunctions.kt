@@ -12,7 +12,6 @@ import androidx.appfunctions.AppFunctionDisabledException
 import androidx.appfunctions.AppFunctionElementAlreadyExistsException
 import androidx.appfunctions.AppFunctionElementNotFoundException
 import androidx.appfunctions.AppFunctionException
-import androidx.appfunctions.AppFunctionFunctionNotFoundException
 import androidx.appfunctions.AppFunctionInvalidArgumentException
 import androidx.appfunctions.AppFunctionLimitExceededException
 import androidx.appfunctions.AppFunctionNotSupportedException
@@ -103,7 +102,7 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
         "notSupported" -> AppFunctionNotSupportedException(message)
         "disabled" -> AppFunctionDisabledException(message)
         "limitExceeded" -> AppFunctionLimitExceededException(message)
-        "handlerNotFound" -> AppFunctionFunctionNotFoundException(message)
+        "handlerNotFound" -> AppFunctionAppUnknownException(message)
         "userCancelled" -> AppFunctionCancelledException(message)
         else -> AppFunctionAppUnknownException("$code: $message")
     }
