@@ -254,9 +254,11 @@ if #available(iOS 17.0, *) {
 
 `FlutterBridge` waits for these executors before it runs an intent or a query.
 The wait defaults to 5 seconds (`FlutterBridge.defaultExecutorWaitTimeout`).
-Raise it when a cold start of your app takes longer than that, or lower it to
-fail fast. Set it once, before any intent can run, for example at the top of
-the same `Task`:
+Lower it to fail fast in a process that never gets executors, such as an App
+Intents extension; raise it for an app that wires its executors only after
+asynchronous startup work. Set it anywhere before the executors are wired: the
+value is re-read on every 100 ms poll, so it also applies to a wait that has
+already started:
 
 ```swift
 await FlutterBridge.shared.setExecutorWaitTimeout(8)  // seconds

@@ -246,9 +246,10 @@ if #available(iOS 17.0, *) {
 ```
 
 `FlutterBridge` は Intent やクエリを実行する前に、これらの executor が設定されるのを待ちます。
-待ち時間のデフォルトは 5 秒（`FlutterBridge.defaultExecutorWaitTimeout`）です。アプリの
-コールドスタートにそれ以上かかるなら長く、早く失敗させたいなら短く設定します。Intent が
-実行され得る前に一度だけ、たとえば同じ `Task` の先頭で設定してください:
+待ち時間のデフォルトは 5 秒（`FlutterBridge.defaultExecutorWaitTimeout`）です。App Intents
+拡張のように executor が決して設定されないプロセスでは短くして早く失敗させ、非同期の起動処理の
+あとで executor を設定するアプリでは長くします。executor を設定する前であればどこで呼んでも
+構いません。値は 100 ms のポーリングごとに読み直されるため、すでに始まっている待ちにも反映されます:
 
 ```swift
 await FlutterBridge.shared.setExecutorWaitTimeout(8)  // 秒
