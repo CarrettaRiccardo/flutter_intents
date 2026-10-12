@@ -29,6 +29,12 @@ platform :ios, '17.0'
 
 #### Android
 
+プラグインの Android パッケージ名は `dev.touyou.app_intents` です。
+既存のアプリでは `flutter pub get` を実行し、これまでと同じ出力先とパッケージ名で
+`app_intents_codegen:generate_kotlin` を再実行してください。ネイティブコードの import は
+`dev.touyou.app_intents.AppIntentsPlugin` に更新してください。
+アプリ自体のパッケージ名（生成コマンドの `--package` 引数を含む）は変更不要です。
+
 `appfunctions:1.0.0-alpha12` は **Android Gradle Plugin 9.1.1+**、**Gradle 9.3.1+**、**compileSdk 37** を必要とします。
 `android/app/build.gradle.kts` を更新します（`minSdk = 36` は AppFunctions が Android 16 を必要とするため）:
 

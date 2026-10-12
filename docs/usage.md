@@ -29,6 +29,12 @@ platform :ios, '17.0'
 
 #### Android
 
+The plugin's Android package is `dev.touyou.app_intents`. When upgrading, hosts
+must run `flutter pub get`, rerun `app_intents_codegen:generate_kotlin` with their
+existing output path and package name, and update native imports to
+`dev.touyou.app_intents.AppIntentsPlugin`. Keep the host app's own package name
+unchanged (including the generator's `--package` argument).
+
 `appfunctions:1.0.0-alpha12` requires **Android Gradle Plugin 9.1.1+**, **Gradle 9.3.1+**, and **compileSdk 37**.
 Update `android/app/build.gradle.kts` (`minSdk = 36` because AppFunctions requires Android 16):
 

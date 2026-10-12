@@ -113,6 +113,11 @@ dart run app_intents_codegen:generate_swift -i lib -o ios/Runner/GeneratedIntent
 dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotlin/com/example/app/generated -p com.example.app.generated
 ```
 
+Android hosts upgrading to the `dev.touyou.app_intents` plugin package must run
+`flutter pub get`, regenerate Kotlin with the command above, and update native
+`AppIntentsPlugin` imports to `dev.touyou.app_intents.AppIntentsPlugin`.
+Keep your app's own package name unchanged.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) - Design philosophy and system overview
