@@ -107,6 +107,34 @@ Declare the service in `android/app/src/main/AndroidManifest.xml` inside `<appli
 > does not recognise `androidx.appfunctions.service.AppFunction`, so that setup builds
 > but registers **no** functions.
 
+Wire the generated bridge to the plugin's MethodChannel in `MainActivity`:
+
+```kotlin
+import com.example.app_intents.AppIntentsPlugin
+import <your.kotlin.package>.AppFunctionsBridge
+
+class MainActivity : FlutterActivity() {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        val plugin = AppIntentsPlugin.shared
+        if (plugin != null) {
+            AppFunctionsBridge.initialize(plugin.getChannel())
+        }
+    }
+}
+```
+
+Every AppFunction call is bounded by a per-call timeout, 30 seconds by default.
+When it elapses the call fails with `Intent <identifier> timed out after <n>ms`
+and the Dart handler is told to stop (see
+[Long-running intents](#long-running-intents-progress-and-cancellation-130)).
+Pass a different bound to `initialize` for handlers that legitimately take
+longer; `Long.MAX_VALUE` lifts it:
+
+```kotlin
+AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 60_000L)
+```
+
 ### 3. iOS Native Setup (AppIntentsBridge)
 
 The `AppIntentsBridge` Swift package provides the native bridge between your
@@ -1501,6 +1529,15 @@ build `execution?.reportProgress(…)` is simply a no-op.
 
 `AppIntents().onIntentCancellation` carries the same notices as a stream, for
 tearing down work a handler started and left running.
+
+On Android the generated `AppFunctionsBridge` opens an execution scope for
+**every** AppFunction call, so `AppIntentExecution.current` is never null there.
+`isCancelled` flips when the per-call timeout elapses (`reason: timeout`) or
+when the caller cancels the AppFunction (`reason: cancelled`); the Kotlin side
+has already failed the call by then, so a handler that keeps going is only
+spending the app's time. `reportProgress` is a no-op on Android, and
+`requestValue` throws a `MissingPluginException` because AppFunctions has no
+prompt to show.
 
 ### Asking the user for a value mid-run (#131)
 

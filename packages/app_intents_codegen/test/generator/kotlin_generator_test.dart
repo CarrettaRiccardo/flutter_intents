@@ -754,7 +754,8 @@ void main() {
         );
         expect(result, contains('private val channel: MethodChannel'));
         expect(result, contains('companion object {'));
-        expect(result, contains('fun initialize(channel: MethodChannel)'));
+        expect(result, contains('fun initialize('));
+        expect(result, contains('channel: MethodChannel,'));
         expect(result, contains('fun getInstance(): AppFunctionsBridge'));
         expect(result, contains('suspend fun executeIntent('));
         expect(result, contains('identifier: String'));
@@ -766,9 +767,84 @@ void main() {
         expect(result, contains('override fun error('));
         expect(result, contains('override fun notImplemented()'));
       });
+
+      test('bounds each call with a configurable timeout', () {
+        final result = generator.generateBridge();
+
+        expect(
+          result,
+          contains('const val DEFAULT_EXECUTION_TIMEOUT_MILLIS = 30_000L'),
+        );
+        expect(
+          result,
+          contains(
+            'executionTimeoutMillis: Long = DEFAULT_EXECUTION_TIMEOUT_MILLIS',
+          ),
+        );
+        expect(
+          result,
+          contains(
+            'instance = AppFunctionsBridge(channel, executionTimeoutMillis)',
+          ),
+        );
+        expect(result, contains('withTimeout(executionTimeoutMillis) {'));
+        // A TimeoutCancellationException is a CancellationException, which the
+        // AppFunctions dispatcher would report as "cancelled by the caller".
+        expect(result, contains('} catch (e: TimeoutCancellationException) {'));
+        expect(
+          result,
+          contains(
+            '"Intent \$identifier timed out after \${executionTimeoutMillis}ms", e',
+          ),
+        );
+      });
+
+      test('opens a Dart execution scope and forwards cancellation', () {
+        final result = generator.generateBridge();
+
+        expect(
+          result,
+          contains('val executionId = UUID.randomUUID().toString()'),
+        );
+        // Same reserved key the plugin strips (`intentExecutionIdKey`) and the
+        // Swift generator sends.
+        expect(
+          result,
+          contains('"params" to params + ("_executionId" to executionId)'),
+        );
+        expect(result, contains('cont.invokeOnCancellation { cause ->'));
+        expect(result, contains('notifyCancellation(executionId, cause)'));
+        expect(
+          result,
+          contains(
+            'val reason = if (cause is TimeoutCancellationException) "timeout" else "cancelled"',
+          ),
+        );
+        // Cancellation handlers may run on any thread; the MethodChannel must
+        // be driven from the main one.
+        expect(result, contains('Handler(Looper.getMainLooper()).post {'));
+        expect(result, contains('"intentCancelled",'));
+        expect(
+          result,
+          contains('mapOf("executionId" to executionId, "reason" to reason)'),
+        );
+      });
     });
 
     group('generateAll', () {
+      test('imports the timeout and cancellation helpers the bridge uses', () {
+        final result = generator.generateAll(packageName: 'com.example.app');
+
+        expect(result, contains('import android.os.Handler\n'));
+        expect(result, contains('import android.os.Looper\n'));
+        expect(result, contains('import java.util.UUID\n'));
+        expect(
+          result,
+          contains('import kotlinx.coroutines.TimeoutCancellationException\n'),
+        );
+        expect(result, contains('import kotlinx.coroutines.withTimeout\n'));
+      });
+
       test('generates complete Kotlin file with package declaration', () {
         final result = generator.generateAll(
           packageName: 'com.example.app.generated',

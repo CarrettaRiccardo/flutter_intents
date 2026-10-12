@@ -106,6 +106,32 @@ KSP が具象クラス `GeneratedAppFunctionService`（生成ファイルと同�
 > どちらも不要になりました。alpha12 の compiler は `androidx.appfunctions.service.AppFunction` を認識しないため、
 > 旧構成はビルドこそ通るものの関数が **1 件も** 登録されません。
 
+生成されたブリッジを `MainActivity` でプラグインの MethodChannel に接続します:
+
+```kotlin
+import com.example.app_intents.AppIntentsPlugin
+import <your.kotlin.package>.AppFunctionsBridge
+
+class MainActivity : FlutterActivity() {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        val plugin = AppIntentsPlugin.shared
+        if (plugin != null) {
+            AppFunctionsBridge.initialize(plugin.getChannel())
+        }
+    }
+}
+```
+
+AppFunction の呼び出しは 1 回ごとにタイムアウト（既定 30 秒）で打ち切られます。時間切れになると
+呼び出しは `Intent <identifier> timed out after <n>ms` で失敗し、Dart ハンドラにも停止が通知されます
+（[長時間実行 Intent](#長時間実行-intent-の進捗とキャンセル-130) を参照）。正当にもっと時間のかかる
+ハンドラがあるなら `initialize` に別の上限を渡してください。`Long.MAX_VALUE` で上限を外せます:
+
+```kotlin
+AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 60_000L)
+```
+
 ### 3. iOSネイティブ設定 (AppIntentsBridge)
 
 `AppIntentsBridge` Swiftパッケージは、FlutterアプリとiOS App Intentsのネイティブブリッジを提供します。
@@ -1456,6 +1482,14 @@ Future<void> exportTasksHandler({required String format}) async {
 
 `AppIntents().onIntentCancellation` は同じ通知をストリームでも流します。ハンドラが投げ
 っぱなしにした処理を外側から畳むときに使えます。
+
+Android では生成される `AppFunctionsBridge` が **すべての** AppFunction 呼び出しで実行スコープを
+開くので、`AppIntentExecution.current` が null になることはありません。呼び出しごとのタイムアウトが
+切れたとき（`reason: timeout`）、または呼び出し側が AppFunction をキャンセルしたとき
+（`reason: cancelled`）に `isCancelled` が true になります。その時点で Kotlin 側は既に呼び出しを
+失敗として返しているので、ハンドラが処理を続けてもアプリの時間を消費するだけです。Android では
+`reportProgress` は何もせず、`requestValue` は AppFunctions に表示できるプロンプトが無いため
+`MissingPluginException` を投げます。
 
 ### 実行中にユーザーへ値を聞く (#131)
 

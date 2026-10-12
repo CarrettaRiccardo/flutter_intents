@@ -37,9 +37,11 @@ const String valueImportQuerySuffix = '#import';
 /// Reserved params key carrying the native execution id (#130, #131).
 ///
 /// The generated `perform()` adds it for intents that open an execution scope
-/// (long-running, cancellable, or with a requestable parameter). It is stripped
-/// before the handler sees the params, so a generated `…Params.fromMap` never
-/// has to know about it.
+/// (long-running, cancellable, or with a requestable parameter), and the
+/// generated Android `AppFunctionsBridge` adds it to every call so its timeout
+/// and the caller's cancellation can reach the handler. It is stripped before
+/// the handler sees the params, so a generated `…Params.fromMap` never has to
+/// know about it.
 const String intentExecutionIdKey = '_executionId';
 
 /// An implementation of [AppIntentsPlatform] that uses method channels.

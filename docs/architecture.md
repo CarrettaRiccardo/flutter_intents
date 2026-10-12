@@ -371,6 +371,7 @@ struct AppShortcuts: AppShortcutsProvider {
 | Execution | In-process via MethodChannel (no URL scheme needed) |
 | Code Generation | KSP-based `@AppFunction` annotation processing |
 | Entity Serialization | `@AppFunctionSerializable` data classes |
+| Call Timeout / Cancellation | Per-call bound in the generated `AppFunctionsBridge` (30 s default, set in `initialize`); timeout and caller cancellation reach the Dart handler as `intentCancelled` |
 
 ## Future Extension Points
 
