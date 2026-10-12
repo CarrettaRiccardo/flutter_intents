@@ -16,10 +16,6 @@ part 'task_summary_intent.intent.dart';
   identifier: 'com.example.taskapp.taskSummary',
   title: 'Task Summary',
   description: 'Summarize how many tasks are left',
-  // The count comes from the user's own task list, so ask for the device to
-  // be unlocked first; the system default lets an intent run from the lock
-  // screen.
-  authenticationPolicy: IntentAuthentication.requiresAuthentication,
   resultDialogTemplate: 'You have {result.openCount} tasks left',
   resultDialogSupportingTemplate: '{result.openCount} left',
   snippet: SnippetTemplate(

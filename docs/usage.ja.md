@@ -765,7 +765,8 @@ Shortcutsエディタでの表示を制御：
 
 #### 認証ポリシー
 
-デバイスがロックされたままでも Siri に Intent を実行させてよいかを指定します:
+デバイスがロックされたままでも Intent を実行してよいか（Siri、Shortcuts、Spotlight など）を
+指定します:
 
 ```dart
 @IntentSpec(
@@ -780,7 +781,7 @@ Shortcutsエディタでの表示を制御：
 
 | Dart | 挙動 |
 |------|------|
-| `IntentAuthentication.alwaysAllowed` | ロック画面からも含め、いつでも実行できます。 |
+| `IntentAuthentication.alwaysAllowed` | ロック中も含め、いつでも実行できます。 |
 | `IntentAuthentication.requiresAuthentication` | 実行前にユーザーの認証が必要です。 |
 | `IntentAuthentication.requiresLocalDeviceAuthentication` | 認証済みの Apple Watch など別のデバイスからのリクエストでも、Intent を実行するデバイス自体のロック解除を求めます。ロック中は暗号化されるデータをハンドラが読む場合に使います。 |
 

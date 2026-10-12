@@ -777,7 +777,8 @@ The `{paramName}` placeholders become `\(\.$paramName)` in the generated Swift `
 
 #### Authentication Policy
 
-Decide whether Siri may run the intent while the device is locked:
+Decide whether the intent may run while the device is locked (Siri, Shortcuts,
+Spotlight, ...):
 
 ```dart
 @IntentSpec(

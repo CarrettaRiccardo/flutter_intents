@@ -15,6 +15,8 @@ struct CompleteTaskIntentSpec: AppIntent {
     static var description: IntentDescription =
         IntentDescription("Mark a task as completed")
 
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
     @available(iOS 26.0, *)
     static var supportedModes: IntentModes { .foreground }
 
@@ -91,8 +93,6 @@ struct TaskSummaryIntentSpec: AppIntent {
     static var title: LocalizedStringResource = "Task Summary"
     static var description: IntentDescription =
         IntentDescription("Summarize how many tasks are left")
-
-    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {

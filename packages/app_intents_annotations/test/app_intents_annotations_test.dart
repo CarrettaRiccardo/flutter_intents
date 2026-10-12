@@ -36,6 +36,14 @@ void main() {
       );
     });
 
+    test('keeps the index order the codegen analyzer maps by', () {
+      // IntentAnalyzer reads `index` off the annotation, so reordering these
+      // cases would silently emit the wrong Swift policy.
+      expect(IntentAuthentication.alwaysAllowed.index, 0);
+      expect(IntentAuthentication.requiresAuthentication.index, 1);
+      expect(IntentAuthentication.requiresLocalDeviceAuthentication.index, 2);
+    });
+
     test('IntentSpec leaves authenticationPolicy unset by default', () {
       const spec = IntentSpec(identifier: 'com.example.open', title: 'Open');
       expect(spec.authenticationPolicy, isNull);
