@@ -113,11 +113,10 @@ dart run app_intents_codegen:generate_swift -i lib -o ios/Runner/GeneratedIntent
 dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotlin/com/example/app/generated -p com.example.app.generated
 ```
 
-Android プラグインのパッケージ名が `dev.touyou.app_intents` に変更されました。
-既存のアプリでは `flutter pub get` を実行し、上記のコマンドで Kotlin コードを再生成してください。
-ネイティブコードの `AppIntentsPlugin` の import も
-`dev.touyou.app_intents.AppIntentsPlugin` に更新してください。
-アプリ自体のパッケージ名は変更不要です。
+Android アプリのネイティブコードで `AppIntentsPlugin` を参照している場合
+（例: `MainActivity` での AppFunctions の接続処理）は、import を
+`dev.touyou.app_intents.AppIntentsPlugin` に更新し、`flutter pub get` を実行してください。
+生成される Kotlin コードへの影響はありません。
 
 ## ドキュメント
 
