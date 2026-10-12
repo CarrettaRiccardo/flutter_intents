@@ -157,14 +157,41 @@ public actor FlutterBridge {
         valueQueryExecutor = executor
     }
 
-    /// Maximum time to wait for executor to be set (in seconds)
-    private let executorWaitTimeout: Double = 5.0
+    /// The initial value of ``executorWaitTimeout``: 5 seconds.
+    public static let defaultExecutorWaitTimeout: TimeInterval = 5.0
+
+    /// How long `invoke`, `queryEntities`, `suggestedEntities` and `queryValues`
+    /// wait for their executor to be set before failing, in seconds.
+    ///
+    /// The Flutter engine normally wires the executors within a second or two
+    /// of a cold start, but a large app, an old device or a debug build can
+    /// need more, and an app that would rather fail fast can ask for less.
+    /// Change it with ``setExecutorWaitTimeout(_:)`` before any intent can run,
+    /// typically in AppDelegate next to the executor wiring. The wait polls in
+    /// 100 ms steps, so the value is rounded to that resolution.
+    /// `clearExecutors()` does not reset it: it is configuration, not state
+    /// the Flutter engine owns.
+    public private(set) var executorWaitTimeout: TimeInterval = FlutterBridge.defaultExecutorWaitTimeout
+
+    /// Sets ``executorWaitTimeout``.
+    ///
+    /// - Parameter seconds: The new maximum wait. Negative values are treated
+    ///   as zero, which makes every wait fail immediately while no executor is
+    ///   set.
+    public func setExecutorWaitTimeout(_ seconds: TimeInterval) {
+        executorWaitTimeout = max(0, seconds)
+    }
+
+    /// Number of 100 ms polls that fit in ``executorWaitTimeout``.
+    private var executorWaitRetries: Int {
+        Int((executorWaitTimeout * 10).rounded())
+    }
 
     /// Invokes a registered intent handler with the given parameters.
     ///
     /// The method first checks for a locally registered handler. If none is found,
     /// it falls back to the intent executor (which communicates with Flutter).
-    /// If the executor is not yet set, waits up to `executorWaitTimeout` seconds.
+    /// If the executor is not yet set, waits up to ``executorWaitTimeout`` seconds.
     ///
     /// - Parameters:
     ///   - intent: The identifier of the intent to invoke
@@ -190,8 +217,8 @@ public actor FlutterBridge {
             return executor
         }
 
-        // Wait with retries (50 x 100ms = 5 seconds max)
-        let maxRetries = Int(executorWaitTimeout * 10)
+        // Wait with retries (100 ms steps, `executorWaitTimeout` in total)
+        let maxRetries = executorWaitRetries
         for _ in 0..<maxRetries {
             try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
             if let executor = intentExecutor {
@@ -268,7 +295,7 @@ public actor FlutterBridge {
             return executor
         }
 
-        let maxRetries = Int(executorWaitTimeout * 10)
+        let maxRetries = executorWaitRetries
         for _ in 0..<maxRetries {
             try await Task.sleep(nanoseconds: 100_000_000)
             if let executor = entityQueryExecutor {
@@ -285,7 +312,7 @@ public actor FlutterBridge {
             return executor
         }
 
-        let maxRetries = Int(executorWaitTimeout * 10)
+        let maxRetries = executorWaitRetries
         for _ in 0..<maxRetries {
             try await Task.sleep(nanoseconds: 100_000_000)
             if let executor = suggestedEntitiesExecutor {
@@ -319,7 +346,7 @@ public actor FlutterBridge {
             return executor
         }
 
-        let maxRetries = Int(executorWaitTimeout * 10)
+        let maxRetries = executorWaitRetries
         for _ in 0..<maxRetries {
             try await Task.sleep(nanoseconds: 100_000_000)
             if let executor = valueQueryExecutor {

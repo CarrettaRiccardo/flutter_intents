@@ -252,9 +252,23 @@ if #available(iOS 17.0, *) {
 }
 ```
 
+`FlutterBridge` waits for these executors before it runs an intent or a query.
+The wait defaults to 5 seconds (`FlutterBridge.defaultExecutorWaitTimeout`).
+Raise it when a cold start of your app takes longer than that, or lower it to
+fail fast. Set it once, before any intent can run, for example at the top of
+the same `Task`:
+
+```swift
+await FlutterBridge.shared.setExecutorWaitTimeout(8)  // seconds
+```
+
+Read it back with `await FlutterBridge.shared.executorWaitTimeout`. One value
+covers intent execution, entity queries, suggested entities and value queries,
+and `clearExecutors()` leaves it untouched.
+
 #### FlutterBridge waitForPlugin Pattern
 
-When App Intents execute via FlutterBridge mode, the Flutter engine may not be initialized yet. The generated entity query code uses a retry pattern internally (`FlutterBridge` waits up to 5 seconds for executors to be set). For custom Swift code that needs to access `AppIntentsPlugin.shared`, use the following pattern:
+When App Intents execute via FlutterBridge mode, the Flutter engine may not be initialized yet. The generated entity query code uses a retry pattern internally (`FlutterBridge` waits up to `executorWaitTimeout`, 5 seconds by default, for executors to be set; see above). For custom Swift code that needs to access `AppIntentsPlugin.shared`, use the following pattern:
 
 ```swift
 private static func waitForPlugin() async throws -> AppIntentsPlugin {
