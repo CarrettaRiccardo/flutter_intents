@@ -48,8 +48,8 @@ class IntentCancellation {
 ///
 /// On Android every AppFunction call opens a scope: [isCancelled] and
 /// [cancelled] report the bridge's per-call timeout and the caller's
-/// cancellation, [reportProgress] is a no-op, and [requestValue] throws
-/// because AppFunctions has no prompt to show.
+/// cancellation, [reportProgress] is a no-op, and [requestValue] resolves to
+/// null because AppFunctions has no prompt to show.
 class AppIntentExecution {
   /// Creates an execution context. The plugin constructs these; the closures
   /// are how it reaches the platform channel without this model depending on
@@ -118,6 +118,9 @@ class AppIntentExecution {
   /// This exists for **optional** parameters: the system already prompts on its
   /// own for a missing non-optional one, which is why a request is the only way
   /// to ask for a value the caller legitimately omitted.
+  ///
+  /// On Android there is no prompt to show, so this resolves to null: treat it
+  /// as "the caller left the parameter out".
   Future<T?> requestValue<T>(String parameterName) async {
     final value = await _requestParameterValue(parameterName);
     // A Date cannot cross the MethodChannel, so the generated Swift answers

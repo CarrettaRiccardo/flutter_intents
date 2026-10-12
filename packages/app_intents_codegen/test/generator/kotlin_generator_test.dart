@@ -312,6 +312,26 @@ void main() {
         );
       });
 
+      test('exempts a longRunning intent from the per-call timeout', () {
+        final intentInfo = IntentInfo(
+          className: 'ExportTasksIntent',
+          identifier: 'com.example.taskapp.exportTasks',
+          title: 'Export Tasks',
+          implementation: IntentImplementationType.dart,
+          parameters: [],
+          longRunning: true,
+        );
+
+        final result = generator.generateIntent(intentInfo);
+
+        expect(
+          result,
+          contains(
+            'bridge.executeIntent("com.example.taskapp.exportTasks", params, longRunning = true)',
+          ),
+        );
+      });
+
       test('ignores iOS-specific urlScheme field', () {
         final intentInfo = IntentInfo(
           className: 'CreateTaskIntent',
@@ -787,6 +807,9 @@ void main() {
             'instance = AppFunctionsBridge(channel, executionTimeoutMillis)',
           ),
         );
+        // Zero or negative would make every call fail at once; Long.MAX_VALUE
+        // is the documented way to lift the bound.
+        expect(result, contains('require(executionTimeoutMillis > 0) {'));
         expect(result, contains('withTimeout(executionTimeoutMillis) {'));
         // A TimeoutCancellationException is a CancellationException, which the
         // AppFunctions dispatcher would report as "cancelled by the caller".
@@ -796,6 +819,19 @@ void main() {
           contains(
             '"Intent \$identifier timed out after \${executionTimeoutMillis}ms", e',
           ),
+        );
+      });
+
+      test('skips the timeout when the caller marks the call longRunning', () {
+        final result = generator.generateBridge();
+
+        expect(result, contains('longRunning: Boolean = false'));
+        expect(result, contains('if (longRunning) {'));
+        // Both paths share one MethodChannel round trip.
+        expect(result, contains('private suspend fun awaitDartReply('));
+        expect(
+          result,
+          contains('awaitDartReply(identifier, params, executionId)'),
         );
       });
 

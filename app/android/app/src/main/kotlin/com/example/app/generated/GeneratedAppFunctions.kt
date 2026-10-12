@@ -39,9 +39,10 @@ data class TaskEntitySpec(
  * Call [initialize] with the MethodChannel from AppIntentsPlugin
  * before any AppFunction methods are invoked.
  *
- * Every call is bounded by the timeout passed to [initialize] and tells
- * Dart when it is abandoned (timeout or caller cancellation), so a handler
- * can stop early through `AppIntentExecution.current` (#130).
+ * Every call is bounded by the timeout passed to [initialize] (except for
+ * intents declared `longRunning`) and tells Dart when it is abandoned
+ * (timeout or caller cancellation), so a handler can stop early through
+ * `AppIntentExecution.current` (#130).
  */
 class AppFunctionsBridge private constructor(
     private val channel: MethodChannel,
@@ -57,12 +58,16 @@ class AppFunctionsBridge private constructor(
         /**
          * [executionTimeoutMillis] bounds each call; a handler that has not
          * answered by then fails the call and is told to stop. Must be positive;
-         * pass `Long.MAX_VALUE` to lift the bound.
+         * pass `Long.MAX_VALUE` to lift the bound. Intents declared
+         * `longRunning` are never bounded.
          */
         fun initialize(
             channel: MethodChannel,
             executionTimeoutMillis: Long = DEFAULT_EXECUTION_TIMEOUT_MILLIS
         ) {
+            require(executionTimeoutMillis > 0) {
+                "executionTimeoutMillis must be positive; pass Long.MAX_VALUE to lift the bound"
+            }
             instance = AppFunctionsBridge(channel, executionTimeoutMillis)
         }
 
@@ -72,46 +77,66 @@ class AppFunctionsBridge private constructor(
             )
     }
 
+    /**
+     * Runs the Dart handler for [identifier]. Bounded by the timeout passed
+     * to [initialize] unless [longRunning] is set, which the generated code
+     * does for intents declared `@IntentSpec(longRunning: true)`.
+     */
     suspend fun executeIntent(
         identifier: String,
-        params: Map<String, Any?>
+        params: Map<String, Any?>,
+        longRunning: Boolean = false
     ): String = withContext(Dispatchers.Main) {
         val executionId = UUID.randomUUID().toString()
-        try {
-            withTimeout(executionTimeoutMillis) {
-                suspendCancellableCoroutine { cont ->
-                    cont.invokeOnCancellation { cause ->
-                        notifyCancellation(executionId, cause)
-                    }
-                    channel.invokeMethod(
-                        "executeIntent",
-                        mapOf(
-                            "identifier" to identifier,
-                            "params" to params + ("_executionId" to executionId)
-                        ),
-                        object : MethodChannel.Result {
-                            override fun success(result: Any?) {
-                                cont.resume(result?.toString() ?: "{}")
-                            }
+        if (longRunning) {
+            awaitDartReply(identifier, params, executionId)
+        } else {
+            try {
+                withTimeout(executionTimeoutMillis) {
+                    awaitDartReply(identifier, params, executionId)
+                }
+            } catch (e: TimeoutCancellationException) {
+                // Not left as a CancellationException: the AppFunctions dispatcher
+                // would report that as a cancellation by the caller, not a failure.
+                throw RuntimeException(
+                    "Intent $identifier timed out after ${executionTimeoutMillis}ms", e
+                )
+            }
+        }
+    }
 
-                            override fun error(code: String, message: String?, details: Any?) {
-                                cont.resumeWithException(RuntimeException("$code: $message"))
-                            }
+    /**
+     * One MethodChannel round trip. Opens a Dart execution scope (#130) under
+     * [executionId] so the handler is told when the call is abandoned.
+     */
+    private suspend fun awaitDartReply(
+        identifier: String,
+        params: Map<String, Any?>,
+        executionId: String
+    ): String = suspendCancellableCoroutine { cont ->
+        cont.invokeOnCancellation { cause ->
+            notifyCancellation(executionId, cause)
+        }
+        channel.invokeMethod(
+            "executeIntent",
+            mapOf(
+                "identifier" to identifier,
+                "params" to params + ("_executionId" to executionId)
+            ),
+            object : MethodChannel.Result {
+                override fun success(result: Any?) {
+                    cont.resume(result?.toString() ?: "{}")
+                }
 
-                            override fun notImplemented() {
-                                cont.resumeWithException(RuntimeException("Not implemented"))
-                            }
-                        }
-                    )
+                override fun error(code: String, message: String?, details: Any?) {
+                    cont.resumeWithException(RuntimeException("$code: $message"))
+                }
+
+                override fun notImplemented() {
+                    cont.resumeWithException(RuntimeException("Not implemented"))
                 }
             }
-        } catch (e: TimeoutCancellationException) {
-            // Not left as a CancellationException: the AppFunctions dispatcher
-            // would report that as a cancellation by the caller, not a failure.
-            throw RuntimeException(
-                "Intent $identifier timed out after ${executionTimeoutMillis}ms", e
-            )
-        }
+        )
     }
 
     /**

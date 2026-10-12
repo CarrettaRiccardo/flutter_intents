@@ -111,6 +111,8 @@ Wire the generated bridge to the plugin's MethodChannel in `MainActivity`:
 
 ```kotlin
 import com.example.app_intents.AppIntentsPlugin
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 import <your.kotlin.package>.AppFunctionsBridge
 
 class MainActivity : FlutterActivity() {
@@ -128,8 +130,10 @@ Every AppFunction call is bounded by a per-call timeout, 30 seconds by default.
 When it elapses the call fails with `Intent <identifier> timed out after <n>ms`
 and the Dart handler is told to stop (see
 [Long-running intents](#long-running-intents-progress-and-cancellation-130)).
-Pass a different bound to `initialize` for handlers that legitimately take
-longer; `Long.MAX_VALUE` lifts it:
+Intents declared `@IntentSpec(longRunning: true)` are exempt: the generated
+function calls the bridge with no bound. For the rest, pass a different bound
+to `initialize` when a handler needs longer; it must be positive, and
+`Long.MAX_VALUE` lifts it:
 
 ```kotlin
 AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 60_000L)
@@ -1532,12 +1536,13 @@ tearing down work a handler started and left running.
 
 On Android the generated `AppFunctionsBridge` opens an execution scope for
 **every** AppFunction call, so `AppIntentExecution.current` is never null there.
-`isCancelled` flips when the per-call timeout elapses (`reason: timeout`) or
-when the caller cancels the AppFunction (`reason: cancelled`); the Kotlin side
-has already failed the call by then, so a handler that keeps going is only
-spending the app's time. `reportProgress` is a no-op on Android, and
-`requestValue` throws a `MissingPluginException` because AppFunctions has no
-prompt to show.
+`isCancelled` flips when the per-call timeout elapses (`reason: timeout`; intents
+declared `longRunning` have no timeout) or when the caller cancels the
+AppFunction (`reason: cancelled`); the Kotlin side has already failed the call by
+then, so a handler that keeps going is only spending the app's time.
+`reportProgress` is a no-op on Android, and `requestValue` resolves to `null`
+because AppFunctions has no prompt to show, so the `note ?? await …requestValue`
+pattern below simply yields `null` there.
 
 ### Asking the user for a value mid-run (#131)
 

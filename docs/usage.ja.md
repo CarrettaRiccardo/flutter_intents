@@ -110,6 +110,8 @@ KSP が具象クラス `GeneratedAppFunctionService`（生成ファイルと同�
 
 ```kotlin
 import com.example.app_intents.AppIntentsPlugin
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 import <your.kotlin.package>.AppFunctionsBridge
 
 class MainActivity : FlutterActivity() {
@@ -125,8 +127,10 @@ class MainActivity : FlutterActivity() {
 
 AppFunction の呼び出しは 1 回ごとにタイムアウト（既定 30 秒）で打ち切られます。時間切れになると
 呼び出しは `Intent <identifier> timed out after <n>ms` で失敗し、Dart ハンドラにも停止が通知されます
-（[長時間実行 Intent](#長時間実行-intent-の進捗とキャンセル-130) を参照）。正当にもっと時間のかかる
-ハンドラがあるなら `initialize` に別の上限を渡してください。`Long.MAX_VALUE` で上限を外せます:
+（[長時間実行 Intent](#長時間実行-intent-の進捗とキャンセル-130) を参照）。
+`@IntentSpec(longRunning: true)` を付けた Intent は対象外で、生成される関数は上限なしでブリッジを
+呼びます。それ以外で本来もっと時間のかかるハンドラがあるなら `initialize` に別の上限を渡してください。
+正の値である必要があり、`Long.MAX_VALUE` で上限を外せます:
 
 ```kotlin
 AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 60_000L)
@@ -1485,11 +1489,12 @@ Future<void> exportTasksHandler({required String format}) async {
 
 Android では生成される `AppFunctionsBridge` が **すべての** AppFunction 呼び出しで実行スコープを
 開くので、`AppIntentExecution.current` が null になることはありません。呼び出しごとのタイムアウトが
-切れたとき（`reason: timeout`）、または呼び出し側が AppFunction をキャンセルしたとき
-（`reason: cancelled`）に `isCancelled` が true になります。その時点で Kotlin 側は既に呼び出しを
-失敗として返しているので、ハンドラが処理を続けてもアプリの時間を消費するだけです。Android では
-`reportProgress` は何もせず、`requestValue` は AppFunctions に表示できるプロンプトが無いため
-`MissingPluginException` を投げます。
+切れたとき（`reason: timeout`。`longRunning` を付けた Intent にはタイムアウトがありません）、または
+呼び出し側が AppFunction をキャンセルしたとき（`reason: cancelled`）に `isCancelled` が true に
+なります。その時点で Kotlin 側は既に呼び出しを失敗として返しているので、ハンドラが処理を続けても
+アプリの時間を消費するだけです。Android では `reportProgress` は何もせず、`requestValue` は
+AppFunctions に表示できるプロンプトが無いため `null` を返します。下の
+`note ?? await …requestValue` のパターンは Android ではそのまま `null` になります。
 
 ### 実行中にユーザーへ値を聞く (#131)
 
