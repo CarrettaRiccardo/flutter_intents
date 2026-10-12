@@ -109,6 +109,12 @@ Declare the service in `android/app/src/main/AndroidManifest.xml` inside `<appli
 </service>
 ```
 
+> **`android:enabled` is required**, not belt-and-braces. Without it the exported service
+> stays enabled below API 36, where `BIND_APP_FUNCTION_SERVICE` is not a platform-defined
+> permission, so another app could bind it and crash yours on class load
+> (`NoClassDefFoundError` for the API 36 superclass). The bool it references is shipped by
+> `app_intents`; see [Keeping your minSdk](#keeping-your-minsdk).
+
 > Earlier versions of this guide used `appfunctions-service` and the
 > `appfunctions:aggregateAppFunctions` KSP arg. Both are gone: the alpha12 compiler
 > does not recognise `androidx.appfunctions.service.AppFunction`, so that setup builds
@@ -130,9 +136,12 @@ published app to drop Android 8–15. Three things keep the host's `minSdk` unto
    class: the system binds the KSP-generated `GeneratedAppFunctionService` directly.
 3. **The service is disabled below API 36.** `app_intents` ships
    `@bool/app_intents_app_functions_service_enabled` (`false` in `values/`, `true` in
-   `values-v36/`). With `android:enabled` pointing at it, the component does not exist on
-   older devices, so nothing can bind or instantiate a class whose superclass
-   (`android.app.appfunctions.AppFunctionService`) is missing there.
+   `values-v36/`). With `android:enabled` pointing at it, the component is disabled on
+   older devices, so it cannot be bound or started, and a class whose superclass
+   (`android.app.appfunctions.AppFunctionService`) is missing there is never loaded.
+   The attribute is **required**: the service is exported, and below API 36 its bind
+   permission is not platform-defined, so without the attribute another app could bind
+   the service and crash yours on class load.
 
 Everything else in `app_intents` is version-agnostic: the plugin's Android code is a plain
 `MethodChannel`, and `AppFunctionsBridge.initialize()` in `MainActivity` only stores that

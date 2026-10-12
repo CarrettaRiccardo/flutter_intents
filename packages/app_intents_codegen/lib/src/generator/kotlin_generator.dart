@@ -39,7 +39,10 @@ class KotlinGenerator {
   /// Name of the `bool` resource the `app_intents` plugin ships (`false` by
   /// default, `true` in `values-v36/`). The host's manifest entry for
   /// [serviceName] must set `android:enabled="@bool/<this>"` so the service is
-  /// disabled on devices below [appFunctionsMinApiLevel].
+  /// disabled on devices below [appFunctionsMinApiLevel]. The attribute is
+  /// required: the service is exported, and below that level its bind
+  /// permission is not platform-defined, so another app could bind it and
+  /// crash the host on class load.
   static const serviceEnabledBoolResource =
       'app_intents_app_functions_service_enabled';
 
@@ -196,12 +199,18 @@ class KotlinGenerator {
       ' * AppFunctions exist on Android 16 (API $appFunctionsMinApiLevel) and later only; the host app',
     );
     buffer.writeln(
-      ' * keeps its own minSdk. Declare [$serviceName] in AndroidManifest.xml with',
+      ' * keeps its own minSdk. The AndroidManifest.xml entry for [$serviceName]',
     );
     buffer.writeln(
-      ' * `android:enabled="@bool/$serviceEnabledBoolResource"` so it is',
+      ' * must set `android:enabled="@bool/$serviceEnabledBoolResource"`.',
     );
-    buffer.writeln(' * never instantiated on older devices.');
+    buffer.writeln(
+      ' * The attribute is required: without it the exported service stays enabled',
+    );
+    buffer.writeln(
+      ' * below API $appFunctionsMinApiLevel, where another app could bind it and crash this app',
+    );
+    buffer.writeln(' * on class load.');
     buffer.writeln(' */');
     buffer.writeln('@RequiresApi($appFunctionsMinApiLevel)');
     buffer.writeln('@AppFunctionServiceEntryPoint(');

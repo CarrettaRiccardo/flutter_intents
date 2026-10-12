@@ -82,9 +82,11 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
  * DO NOT MODIFY BY HAND.
  *
  * AppFunctions exist on Android 16 (API 36) and later only; the host app
- * keeps its own minSdk. Declare [GeneratedAppFunctionService] in AndroidManifest.xml with
- * `android:enabled="@bool/app_intents_app_functions_service_enabled"` so it is
- * never instantiated on older devices.
+ * keeps its own minSdk. The AndroidManifest.xml entry for [GeneratedAppFunctionService]
+ * must set `android:enabled="@bool/app_intents_app_functions_service_enabled"`.
+ * The attribute is required: without it the exported service stays enabled
+ * below API 36, where another app could bind it and crash this app
+ * on class load.
  */
 @RequiresApi(36)
 @AppFunctionServiceEntryPoint(

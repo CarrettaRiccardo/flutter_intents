@@ -979,7 +979,8 @@ void main() {
           ),
         );
         // The KDoc tells the host which manifest switch keeps the service off
-        // below API 36; the name must match the bool the plugin ships.
+        // below API 36 and that it is required; the name must match the bool
+        // the plugin ships.
         expect(
           KotlinGenerator.serviceEnabledBoolResource,
           'app_intents_app_functions_service_enabled',
@@ -987,7 +988,10 @@ void main() {
         expect(
           result,
           contains(
-            'android:enabled="@bool/app_intents_app_functions_service_enabled"',
+            ' * must set `android:enabled="@bool/app_intents_app_functions_service_enabled"`.\n'
+            ' * The attribute is required: without it the exported service stays enabled\n'
+            ' * below API 36, where another app could bind it and crash this app\n'
+            ' * on class load.\n',
           ),
         );
       });

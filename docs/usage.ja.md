@@ -108,6 +108,13 @@ KSP が具象クラス `GeneratedAppFunctionService`（生成ファイルと同�
 </service>
 ```
 
+> **`android:enabled` は必須です。** 念のための設定ではありません。これが無いと、エクスポートされた
+> サービスは API 36 未満でも有効なままになります。そこでは `BIND_APP_FUNCTION_SERVICE` が
+> プラットフォーム定義のパーミッションではないため、他のアプリがこのサービスにバインドでき、
+> API 36 のスーパークラスを読み込めずに（`NoClassDefFoundError`）アプリがクラッシュし得ます。
+> 参照先の bool は `app_intents` が同梱しています。詳しくは
+> [minSdk を上げずに済む仕組み](#minsdk-を上げずに済む仕組み) を参照してください。
+
 > 以前のこのガイドでは `appfunctions-service` と KSP 引数 `appfunctions:aggregateAppFunctions` を使っていましたが、
 > どちらも不要になりました。alpha12 の compiler は `androidx.appfunctions.service.AppFunction` を認識しないため、
 > 旧構成はビルドこそ通るものの関数が **1 件も** 登録されません。
@@ -128,9 +135,11 @@ AppFunctions は Android 16（API 36）の機能ですが、導入のために�
    参照することもありません（システムは KSP が生成する `GeneratedAppFunctionService` を直接バインドします）。
 3. **API 36 未満ではサービスが無効化される。** `app_intents` は
    `@bool/app_intents_app_functions_service_enabled`（`values/` では `false`、`values-v36/` では `true`）を
-   同梱しています。`android:enabled` でこれを参照すると、古い端末ではコンポーネント自体が存在しない扱いになり、
-   スーパークラス（`android.app.appfunctions.AppFunctionService`）が無い環境でクラスがバインド・生成される
-   ことはありません。
+   同梱しています。`android:enabled` でこれを参照すると、古い端末ではコンポーネントが無効化され、バインドも
+   起動もされません。そのため、スーパークラス（`android.app.appfunctions.AppFunctionService`）が無い環境で
+   クラスが読み込まれることはありません。この属性は**必須**です。サービスはエクスポートされており、API 36 未満では
+   バインド用のパーミッションがプラットフォームに定義されていないため、属性が無いと他のアプリがバインドして
+   クラス読み込み時にクラッシュさせ得ます。
 
 それ以外の `app_intents` はバージョンに依存しません。プラグインの Android 側は単なる `MethodChannel` で、
 `MainActivity` の `AppFunctionsBridge.initialize()` もそのチャネルを保持するだけです。サンプルアプリは

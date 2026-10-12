@@ -141,7 +141,7 @@ platform :ios, '17.0'
 
 ## Android Configuration
 
-1. Set `compileSdk`/`targetSdk` to 37 in `android/app/build.gradle.kts` (keep your `minSdk`: the generated service is `@RequiresApi(36)` and disabled on older devices)
+1. Set `compileSdk`/`targetSdk` to 37 in `android/app/build.gradle.kts` (keep your `minSdk`: the generated service is `@RequiresApi(36)`, and the required `android:enabled="@bool/app_intents_app_functions_service_enabled"` on its manifest entry disables it on older devices)
 2. Add KSP and AppFunctions dependencies
 3. See the [full documentation](https://github.com/touyou/flutter_intents/blob/main/docs/usage.md) for complete Android setup instructions including Kotlin code generation.
 
