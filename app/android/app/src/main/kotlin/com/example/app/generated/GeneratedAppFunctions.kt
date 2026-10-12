@@ -4,6 +4,7 @@
 
 package com.example.app.generated
 
+import androidx.annotation.RequiresApi
 import androidx.appfunctions.AppFunctionDeclaration
 import androidx.appfunctions.AppFunctionSerializable
 import androidx.appfunctions.AppFunctionService
@@ -79,7 +80,13 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
 /**
  * Generated AppFunctions from Flutter Intents annotations.
  * DO NOT MODIFY BY HAND.
+ *
+ * AppFunctions exist on Android 16 (API 36) and later only; the host app
+ * keeps its own minSdk. Declare [GeneratedAppFunctionService] in AndroidManifest.xml with
+ * `android:enabled="@bool/app_intents_app_functions_service_enabled"` so it is
+ * never instantiated on older devices.
  */
+@RequiresApi(36)
 @AppFunctionServiceEntryPoint(
     serviceName = "GeneratedAppFunctionService",
     appFunctionXmlFileName = "generated_app_functions",

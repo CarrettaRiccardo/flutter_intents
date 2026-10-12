@@ -29,6 +29,20 @@ class KotlinGenerator {
   /// `assets/`. AndroidManifest.xml points `android.app.appfunctions.v2` at it.
   static const appFunctionXmlFileName = 'generated_app_functions';
 
+  /// Lowest Android API level that has AppFunctions (Android 16).
+  ///
+  /// `androidx.appfunctions.AppFunctionService` is `@RequiresApi(36)`, so the
+  /// generated service carries the same gate. This keeps the host app's
+  /// `minSdk` untouched: the service is simply never instantiated below it.
+  static const appFunctionsMinApiLevel = 36;
+
+  /// Name of the `bool` resource the `app_intents` plugin ships (`false` by
+  /// default, `true` in `values-v36/`). The host's manifest entry for
+  /// [serviceName] must set `android:enabled="@bool/<this>"` so the service is
+  /// disabled on devices below [appFunctionsMinApiLevel].
+  static const serviceEnabledBoolResource =
+      'app_intents_app_functions_service_enabled';
+
   /// Converts a Dart type to its Kotlin equivalent.
   ///
   /// Handles nullable types by preserving the `?` suffix.
@@ -115,6 +129,7 @@ class KotlinGenerator {
     // Imports
     final imports = <String>{};
     if (intents.isNotEmpty) {
+      imports.add('import androidx.annotation.RequiresApi');
       imports.add('import androidx.appfunctions.AppFunctionDeclaration');
       imports.add('import androidx.appfunctions.AppFunctionService');
       imports.add('import androidx.appfunctions.AppFunctionServiceEntryPoint');
@@ -176,7 +191,19 @@ class KotlinGenerator {
       ' * Generated AppFunctions from Flutter Intents annotations.',
     );
     buffer.writeln(' * DO NOT MODIFY BY HAND.');
+    buffer.writeln(' *');
+    buffer.writeln(
+      ' * AppFunctions exist on Android 16 (API $appFunctionsMinApiLevel) and later only; the host app',
+    );
+    buffer.writeln(
+      ' * keeps its own minSdk. Declare [$serviceName] in AndroidManifest.xml with',
+    );
+    buffer.writeln(
+      ' * `android:enabled="@bool/$serviceEnabledBoolResource"` so it is',
+    );
+    buffer.writeln(' * never instantiated on older devices.');
     buffer.writeln(' */');
+    buffer.writeln('@RequiresApi($appFunctionsMinApiLevel)');
     buffer.writeln('@AppFunctionServiceEntryPoint(');
     buffer.writeln('${_indent}serviceName = "$serviceName",');
     buffer.writeln(
