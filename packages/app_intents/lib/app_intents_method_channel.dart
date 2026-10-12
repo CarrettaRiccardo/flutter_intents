@@ -119,7 +119,26 @@ class MethodChannelAppIntents extends AppIntentsPlatform {
   }
 
   /// Handles incoming method calls from the native platform.
+  ///
+  /// An [AppIntentError] escaping a handler is re-thrown as a
+  /// [PlatformException] with the same code, message and details. Flutter
+  /// encodes any other exception under the fixed code `error`, which would hide
+  /// the code from the native side: on Android the generated bridge maps it to
+  /// an `androidx.appfunctions` exception, and iOS reports it in the error
+  /// description.
   Future<dynamic> _handleMethodCall(MethodCall call) async {
+    try {
+      return await _dispatchMethodCall(call);
+    } on AppIntentError catch (e) {
+      throw PlatformException(
+        code: e.code,
+        message: e.message,
+        details: e.details,
+      );
+    }
+  }
+
+  Future<dynamic> _dispatchMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'executeIntent':
         return _onExecuteIntent(call.arguments as Map<Object?, Object?>);

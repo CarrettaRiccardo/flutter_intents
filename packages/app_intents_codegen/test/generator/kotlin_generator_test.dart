@@ -766,6 +766,74 @@ void main() {
         expect(result, contains('override fun error('));
         expect(result, contains('override fun notImplemented()'));
       });
+
+      test('maps Dart error codes to AppFunctions exceptions', () {
+        final result = generator.generateBridge();
+
+        expect(result, contains('private fun toAppFunctionException('));
+        expect(result, contains('): AppFunctionException = when (code) {'));
+        expect(
+          result,
+          contains(
+            'cont.resumeWithException(toAppFunctionException(code, message))',
+          ),
+        );
+        for (final entry
+            in KotlinGenerator.appFunctionExceptionByErrorCode.entries) {
+          expect(result, contains('"${entry.key}" -> ${entry.value}(message)'));
+        }
+        expect(
+          result,
+          contains(
+            r'else -> AppFunctionAppUnknownException("$code: $message")',
+          ),
+        );
+        expect(result, isNot(contains('RuntimeException')));
+      });
+
+      test('reports a missing Dart implementation as an app error', () {
+        final result = generator.generateBridge();
+
+        expect(
+          result,
+          contains(
+            'AppFunctionAppUnknownException('
+            '"executeIntent is not implemented on the Dart side")',
+          ),
+        );
+      });
+
+      test(
+        'only names exceptions that exist in appfunctions 1.0.0-alpha13',
+        () {
+          // Public exception classes in the alpha13 sources jar
+          // (AppFunction{Request,App,System}Exceptions.kt). A typo in the table
+          // would otherwise only surface as a Kotlin compile error in the app.
+          const alpha13Exceptions = {
+            'AppFunctionDeniedException',
+            'AppFunctionInvalidArgumentException',
+            'AppFunctionDisabledException',
+            'AppFunctionFunctionNotFoundException',
+            'AppFunctionElementNotFoundException',
+            'AppFunctionLimitExceededException',
+            'AppFunctionElementAlreadyExistsException',
+            'AppFunctionAppUnknownException',
+            'AppFunctionPermissionRequiredException',
+            'AppFunctionNotSupportedException',
+            'AppFunctionSystemUnknownException',
+            'AppFunctionCancelledException',
+          };
+
+          for (final exception
+              in KotlinGenerator.appFunctionExceptionByErrorCode.values) {
+            expect(alpha13Exceptions, contains(exception));
+          }
+          expect(
+            alpha13Exceptions,
+            contains(KotlinGenerator.fallbackAppFunctionException),
+          );
+        },
+      );
     });
 
     group('generateAll', () {
@@ -819,6 +887,26 @@ void main() {
           contains('import io.flutter.plugin.common.MethodChannel'),
         );
         expect(result, contains('import kotlinx.coroutines.Dispatchers'));
+      });
+
+      test('imports the AppFunctions exceptions the bridge raises', () {
+        // The bridge is emitted even without intents, so the imports are too.
+        final result = generator.generateAll(packageName: 'com.example.app');
+
+        expect(
+          result,
+          contains('import androidx.appfunctions.AppFunctionException\n'),
+        );
+        expect(
+          result,
+          contains(
+            'import androidx.appfunctions.AppFunctionAppUnknownException\n',
+          ),
+        );
+        for (final exception
+            in KotlinGenerator.appFunctionExceptionByErrorCode.values) {
+          expect(result, contains('import androidx.appfunctions.$exception\n'));
+        }
       });
 
       test('includes AppFunctionSerializable import for entities', () {

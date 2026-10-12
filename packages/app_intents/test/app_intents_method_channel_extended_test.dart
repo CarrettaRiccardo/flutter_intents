@@ -321,10 +321,65 @@ void main() {
       expect(platform.methodChannel, isNotNull);
     });
   });
+
+  group('MethodChannelAppIntents - Error envelope', () {
+    // Flutter encodes any exception other than PlatformException under the
+    // fixed code "error", so the native side only sees the AppIntentError code
+    // if the plugin converts it. The generated Android bridge maps that code to
+    // an androidx.appfunctions exception.
+    test(
+      'forwards an AppIntentError thrown by a handler with its code',
+      () async {
+        platform.registerIntentHandler('com.example.failing', (params) async {
+          throw AppIntentError.fromCode(
+            AppIntentErrorCode.notFound,
+            message: 'No task with id 42',
+            details: {'id': '42'},
+          );
+        });
+
+        final reply = await simulateIncomingMethodCall(
+          channel,
+          'executeIntent',
+          {'identifier': 'com.example.failing', 'params': <String, dynamic>{}},
+        );
+
+        expect(
+          () => const StandardMethodCodec().decodeEnvelope(reply!),
+          throwsA(
+            isA<PlatformException>()
+                .having((e) => e.code, 'code', 'notFound')
+                .having((e) => e.message, 'message', 'No task with id 42')
+                .having((e) => e.details, 'details', {'id': '42'}),
+          ),
+        );
+      },
+    );
+
+    test('reports a missing handler as handlerNotFound', () async {
+      final reply = await simulateIncomingMethodCall(channel, 'executeIntent', {
+        'identifier': 'com.example.unregistered',
+        'params': <String, dynamic>{},
+      });
+
+      expect(
+        () => const StandardMethodCodec().decodeEnvelope(reply!),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'handlerNotFound',
+          ),
+        ),
+      );
+    });
+  });
 }
 
 /// Helper to simulate an incoming method call from the native side.
-Future<void> simulateIncomingMethodCall(
+///
+/// Returns the reply envelope the native side would receive.
+Future<ByteData?> simulateIncomingMethodCall(
   MethodChannel channel,
   String method,
   Map<String, dynamic> arguments,
@@ -333,6 +388,10 @@ Future<void> simulateIncomingMethodCall(
     MethodCall(method, arguments),
   );
 
+  ByteData? reply;
   await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .handlePlatformMessage(channel.name, message, (ByteData? reply) {});
+      .handlePlatformMessage(channel.name, message, (ByteData? data) {
+        reply = data;
+      });
+  return reply;
 }

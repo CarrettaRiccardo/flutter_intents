@@ -2020,6 +2020,45 @@ Future<List<Task>> defaultQuery() async {
 }
 ```
 
+To report a failure to the caller instead, throw an `AppIntentError` with one of
+the well-known `AppIntentErrorCode` values. The code crosses the MethodChannel
+unchanged (as the `PlatformException` code), so the native side can turn it into
+a typed error:
+
+```dart
+Future<Task> completeTaskIntentHandler({required String task}) async {
+  final toggled = await TaskRepository.instance.toggleTaskCompletion(task);
+  if (toggled == null) {
+    throw AppIntentError.fromCode(
+      AppIntentErrorCode.notFound,
+      message: 'No task with id $task',
+    );
+  }
+  return toggled;
+}
+```
+
+On Android the generated `AppFunctionsBridge` maps the code to the matching
+`androidx.appfunctions` exception, which is what the calling agent receives:
+
+| `AppIntentErrorCode` | AppFunctions exception |
+|---|---|
+| `invalidParameters` | `AppFunctionInvalidArgumentException` |
+| `notFound` | `AppFunctionElementNotFoundException` |
+| `alreadyExists` | `AppFunctionElementAlreadyExistsException` |
+| `denied` | `AppFunctionDeniedException` |
+| `permissionRequired` | `AppFunctionPermissionRequiredException` |
+| `notSupported` | `AppFunctionNotSupportedException` |
+| `disabled` | `AppFunctionDisabledException` |
+| `limitExceeded` | `AppFunctionLimitExceededException` |
+| `handlerNotFound` (raised by the plugin) | `AppFunctionFunctionNotFoundException` |
+| `userCancelled` | `AppFunctionCancelledException` |
+| any other code | `AppFunctionAppUnknownException` with `"<code>: <message>"` |
+
+Any other exception escaping a handler is reported as `execution_error` and
+takes the last row. On iOS the code is not mapped to a system error type; it
+appears in the error the intent throws (`Flutter error (notFound): …`).
+
 ## Troubleshooting
 
 ### Build Errors

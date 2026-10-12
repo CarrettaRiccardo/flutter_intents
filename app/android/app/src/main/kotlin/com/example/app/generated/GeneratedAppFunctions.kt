@@ -4,7 +4,19 @@
 
 package com.example.app.generated
 
+import androidx.appfunctions.AppFunctionAppUnknownException
+import androidx.appfunctions.AppFunctionCancelledException
 import androidx.appfunctions.AppFunctionDeclaration
+import androidx.appfunctions.AppFunctionDeniedException
+import androidx.appfunctions.AppFunctionDisabledException
+import androidx.appfunctions.AppFunctionElementAlreadyExistsException
+import androidx.appfunctions.AppFunctionElementNotFoundException
+import androidx.appfunctions.AppFunctionException
+import androidx.appfunctions.AppFunctionFunctionNotFoundException
+import androidx.appfunctions.AppFunctionInvalidArgumentException
+import androidx.appfunctions.AppFunctionLimitExceededException
+import androidx.appfunctions.AppFunctionNotSupportedException
+import androidx.appfunctions.AppFunctionPermissionRequiredException
 import androidx.appfunctions.AppFunctionSerializable
 import androidx.appfunctions.AppFunctionService
 import androidx.appfunctions.AppFunctionServiceEntryPoint
@@ -63,15 +75,37 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
                     }
 
                     override fun error(code: String, message: String?, details: Any?) {
-                        cont.resumeWithException(RuntimeException("$code: $message"))
+                        cont.resumeWithException(toAppFunctionException(code, message))
                     }
 
                     override fun notImplemented() {
-                        cont.resumeWithException(RuntimeException("Not implemented"))
+                        cont.resumeWithException(AppFunctionAppUnknownException("executeIntent is not implemented on the Dart side"))
                     }
                 }
             )
         }
+    }
+
+    /**
+     * Maps a Dart `AppIntentError` code to the matching AppFunctions exception,
+     * so the caller receives a typed error category instead of a generic failure.
+     * Unknown codes become [AppFunctionAppUnknownException] with the code kept in the message.
+     */
+    private fun toAppFunctionException(
+        code: String,
+        message: String?
+    ): AppFunctionException = when (code) {
+        "invalidParameters" -> AppFunctionInvalidArgumentException(message)
+        "notFound" -> AppFunctionElementNotFoundException(message)
+        "alreadyExists" -> AppFunctionElementAlreadyExistsException(message)
+        "denied" -> AppFunctionDeniedException(message)
+        "permissionRequired" -> AppFunctionPermissionRequiredException(message)
+        "notSupported" -> AppFunctionNotSupportedException(message)
+        "disabled" -> AppFunctionDisabledException(message)
+        "limitExceeded" -> AppFunctionLimitExceededException(message)
+        "handlerNotFound" -> AppFunctionFunctionNotFoundException(message)
+        "userCancelled" -> AppFunctionCancelledException(message)
+        else -> AppFunctionAppUnknownException("$code: $message")
     }
 }
 
