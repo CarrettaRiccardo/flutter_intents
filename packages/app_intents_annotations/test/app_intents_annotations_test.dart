@@ -23,6 +23,37 @@ void main() {
     });
   });
 
+  group('IntentAuthentication', () {
+    test('mirrors the three IntentAuthenticationPolicy cases', () {
+      expect(IntentAuthentication.values, hasLength(3));
+      expect(
+        IntentAuthentication.values,
+        containsAll([
+          IntentAuthentication.alwaysAllowed,
+          IntentAuthentication.requiresAuthentication,
+          IntentAuthentication.requiresLocalDeviceAuthentication,
+        ]),
+      );
+    });
+
+    test('IntentSpec leaves authenticationPolicy unset by default', () {
+      const spec = IntentSpec(identifier: 'com.example.open', title: 'Open');
+      expect(spec.authenticationPolicy, isNull);
+    });
+
+    test('IntentSpec carries authenticationPolicy', () {
+      const spec = IntentSpec(
+        identifier: 'com.example.locked',
+        title: 'Locked',
+        authenticationPolicy: IntentAuthentication.requiresAuthentication,
+      );
+      expect(
+        spec.authenticationPolicy,
+        equals(IntentAuthentication.requiresAuthentication),
+      );
+    });
+  });
+
   group('AppShortcut', () {
     test('can be created with required parameters', () {
       const shortcut = AppShortcut(

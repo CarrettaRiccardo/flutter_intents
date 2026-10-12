@@ -92,6 +92,8 @@ struct TaskSummaryIntentSpec: AppIntent {
     static var description: IntentDescription =
         IntentDescription("Summarize how many tasks are left")
 
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
         let snippetResult = try await FlutterBridge.shared.invoke(
