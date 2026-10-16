@@ -113,6 +113,11 @@ dart run app_intents_codegen:generate_swift -i lib -o ios/Runner/GeneratedIntent
 dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotlin/com/example/app/generated -p com.example.app.generated
 ```
 
+Android アプリのネイティブコードで `AppIntentsPlugin` を参照している場合
+（例: `MainActivity` での AppFunctions の接続処理）は、import を
+`dev.touyou.app_intents.AppIntentsPlugin` に更新し、`flutter pub get` を実行してください。
+生成される Kotlin コードへの影響はありません。
+
 ## ドキュメント
 
 - [アーキテクチャ](docs/architecture.ja.md) - 設計思想と全体構成
@@ -124,7 +129,7 @@ dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotl
 - **Dart SDK**: ^3.10.0
 - **Flutter**: 3.3+
 - **iOS**: 17.0+（App Intents）、Swift 5.9+
-- **Android**: API 36+（Android 16、AppFunctions）
+- **Android**: アプリの既存の `minSdk` のまま（Flutter のデフォルトは 24）。AppFunctions が提供されるのは API 36+（Android 16）のみ
 
 ## コントリビュート
 

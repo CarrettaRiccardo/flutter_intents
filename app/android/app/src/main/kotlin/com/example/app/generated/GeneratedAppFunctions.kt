@@ -4,6 +4,7 @@
 
 package com.example.app.generated
 
+import androidx.annotation.RequiresApi
 import androidx.appfunctions.AppFunctionAppUnknownException
 import androidx.appfunctions.AppFunctionCancelledException
 import androidx.appfunctions.AppFunctionDeclaration
@@ -112,7 +113,15 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
 /**
  * Generated AppFunctions from Flutter Intents annotations.
  * DO NOT MODIFY BY HAND.
+ *
+ * AppFunctions exist on Android 16 (API 36) and later only; the host app
+ * keeps its own minSdk. The AndroidManifest.xml entry for [GeneratedAppFunctionService]
+ * must set `android:enabled="@bool/app_intents_app_functions_service_enabled"`.
+ * The attribute is required: without it the exported service stays enabled
+ * below API 36, where another app could bind it and crash this app
+ * on class load.
  */
+@RequiresApi(36)
 @AppFunctionServiceEntryPoint(
     serviceName = "GeneratedAppFunctionService",
     appFunctionXmlFileName = "generated_app_functions",
@@ -120,20 +129,6 @@ class AppFunctionsBridge private constructor(private val channel: MethodChannel)
 abstract class GeneratedAppFunctions : AppFunctionService() {
     private val bridge: AppFunctionsBridge
         get() = AppFunctionsBridge.getInstance()
-
-    /**
-     * Mark a task as completed
-     *
-     * @param task The task to complete
-     */
-    @AppFunctionDeclaration(isDescribedByKDoc = true)
-    suspend fun completeTask(
-        task: String
-    ): String {
-        val params = mutableMapOf<String, Any?>()
-        params["task"] = task
-        return bridge.executeIntent("com.example.taskapp.completeTask", params)
-    }
 
     /**
      * Summarize how many tasks are left
@@ -162,6 +157,20 @@ abstract class GeneratedAppFunctions : AppFunctionService() {
         if (description != null) params["description"] = description
         if (dueDate != null) params["dueDate"] = dueDate
         return bridge.executeIntent("com.example.taskapp.createTask", params)
+    }
+
+    /**
+     * Mark a task as completed
+     *
+     * @param task The task to complete
+     */
+    @AppFunctionDeclaration(isDescribedByKDoc = true)
+    suspend fun completeTask(
+        task: String
+    ): String {
+        val params = mutableMapOf<String, Any?>()
+        params["task"] = task
+        return bridge.executeIntent("com.example.taskapp.completeTask", params)
     }
 
     /**
