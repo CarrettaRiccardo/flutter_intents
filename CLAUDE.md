@@ -45,8 +45,10 @@ docs/
 
 ### Completed
 - **Android per-call timeout + cancellation forwarding (2026-10-12)**
-  - The generated `AppFunctionsBridge.executeIntent` wraps the MethodChannel call in `withTimeout(executionTimeoutMillis)` (`initialize(channel, executionTimeoutMillis = DEFAULT_EXECUTION_TIMEOUT_MILLIS)`, 30 s; must be positive, `require`d; `Long.MAX_VALUE` lifts it) and sends `_executionId` with **every** call, so `AppIntentExecution.current` is non-null in every Android handler. Intents with `@IntentSpec(longRunning: true)` are exempt: the generated function passes `longRunning = true` and the bridge skips `withTimeout` for them. The Dart side strips `_executionId` before `onIntentExecution` listeners see the params (both platforms). `cont.invokeOnCancellation` posts `intentCancelled` (`reason` = `timeout` / `cancelled`) to Dart through `Handler(Looper.getMainLooper())`, reusing the #130 protocol unchanged: no new Dart plumbing.
+  - The generated `AppFunctionsBridge.executeIntent` wraps the MethodChannel call in `withTimeout` **only when the host opted in** (`initialize(channel, executionTimeoutMillis = …)`; `Long?`, `null` by default = unbounded like iOS; must be positive when set, `require`d). Unbounded is the default because Dart cancellation is cooperative: a timed-out handler usually still commits its side effect, and a retrying agent would duplicate it and sends `_executionId` with **every** call, so `AppIntentExecution.current` is non-null in every Android handler. Intents with `@IntentSpec(longRunning: true)` are exempt: the generated function passes `longRunning = true` and the bridge skips `withTimeout` for them. The Dart side strips `_executionId` before `onIntentExecution` listeners see the params (both platforms). `cont.invokeOnCancellation` posts `intentCancelled` (`reason` = `timeout` / `cancelled`) to Dart through `Handler(Looper.getMainLooper())`, reusing the #130 protocol unchanged: no new Dart plumbing.
   - `TimeoutCancellationException` **is a `CancellationException`**, and the KSP dispatcher (`AppFunctionServiceDelegate`) turns any `CancellationException` into `AppFunctionCancelledException`, i.e. "the caller cancelled". The generated code catches it and rethrows `RuntimeException("Intent … timed out after …ms")` so a timeout is reported as a failure. A late Dart reply after cancellation is ignored by the cancelled continuation (one `resume` is tolerated).
+  - `longRunning: true` does two jobs: it lifts the Android bound and drives the iOS `LongRunningIntent` generation under the WWDC26 experimental codegen.
+  - Version skew: generated Kotlin from codegen 0.19.0+ opens an execution scope on every call and needs `app_intents` 0.19.0+ on Android (an older plugin does not answer `requestIntentValue`).
   - On Android `reportProgress` is a no-op (`MissingPluginException` swallowed) and `requestValue` resolves to null: `AppIntentsPlugin.kt` answers `requestIntentValue` with `success(null)` because AppFunctions cannot prompt, and the documented `note ?? await …requestValue(...)` pattern would otherwise fail every call that omits the optional param.
 - **Typed AppFunctions errors (2026-10-12)**
   - `AppIntentErrorCode` gained `notFound`, `alreadyExists`, `denied`, `permissionRequired`, `notSupported`, `disabled`, `limitExceeded`. A handler throws `AppIntentError.fromCode(...)`; the plugin rethrows it as a `PlatformException` so the code survives the channel (it used to arrive as `"error"` on both platforms). `details` is forwarded only if `methodChannel.codec.encodeErrorEnvelope` accepts it; otherwise it is dropped, because an encode failure after the handler returns reaches native as an empty reply and loses the code too.
@@ -885,7 +887,7 @@ Android AppFunctions run in-process, so MethodChannel works directly (no URL sch
 
 ### Key Integration Points
 - **iOS: FlutterBridge ↔ AppIntentsPlugin**: Wired via `setIntentExecutor()`, `setEntityQueryExecutor()`, and `setSuggestedEntitiesExecutor()` in AppDelegate
-- **Android: AppFunctionsBridge ↔ AppIntentsPlugin**: Wired via `AppFunctionsBridge.initialize(channel, executionTimeoutMillis = …)` in MainActivity (the timeout is optional, 30 s by default)
+- **Android: AppFunctionsBridge ↔ AppIntentsPlugin**: Wired via `AppFunctionsBridge.initialize(channel, executionTimeoutMillis = …)` in MainActivity (the timeout is optional; unbounded by default)
 - **MethodChannel name**: `"app_intents"`
 - **Method names**: `executeIntent`, `queryEntities`, `getSuggestedEntities`; native → Dart: `intentCancelled`
 
@@ -977,8 +979,7 @@ class MainActivity : FlutterActivity() {
     }
 }
 ```
-   `initialize` takes an optional `executionTimeoutMillis` (default `DEFAULT_EXECUTION_TIMEOUT_MILLIS`, 30 s) bounding each AppFunction call; `Long.MAX_VALUE` lifts the bound.
-7. Register the KSP-generated `GeneratedAppFunctionService` in `AndroidManifest.xml` (permission, action and `<property>`s as in the Gotchas entry; see `app/android/app/src/main/AndroidManifest.xml`)
+   `initialize` takes an optional `executionTimeoutMillis` (`null` by default: unbounded) bounding each AppFunction call; set it only for idempotent handlers.
 7. Register the KSP-generated `GeneratedAppFunctionService` in `AndroidManifest.xml` (permission, action and `<property>`s as in the Gotchas entry, plus the **required** `android:enabled="@bool/app_intents_app_functions_service_enabled"` and `tools:targetApi="36"`; see `app/android/app/src/main/AndroidManifest.xml`)
 
 ## Development Commands

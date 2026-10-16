@@ -51,34 +51,32 @@ data class TaskEntitySpec(
  * Call [initialize] with the MethodChannel from AppIntentsPlugin
  * before any AppFunction methods are invoked.
  *
- * Every call is bounded by the timeout passed to [initialize] (except for
- * intents declared `longRunning`) and tells Dart when it is abandoned
- * (timeout or caller cancellation), so a handler can stop early through
- * `AppIntentExecution.current` (#130).
+ * Calls are unbounded unless [initialize] is given a timeout. Either way the
+ * bridge tells Dart when a call is abandoned (timeout or caller cancellation),
+ * so a handler can stop early through `AppIntentExecution.current`.
  */
 class AppFunctionsBridge private constructor(
     private val channel: MethodChannel,
-    private val executionTimeoutMillis: Long
+    private val executionTimeoutMillis: Long?
 ) {
 
     companion object {
-        /** Default upper bound for one AppFunction call, in milliseconds. */
-        const val DEFAULT_EXECUTION_TIMEOUT_MILLIS = 30_000L
-
         private var instance: AppFunctionsBridge? = null
 
         /**
-         * [executionTimeoutMillis] bounds each call; a handler that has not
-         * answered by then fails the call and is told to stop. Must be positive;
-         * pass `Long.MAX_VALUE` to lift the bound. Intents declared
+         * [executionTimeoutMillis] optionally bounds each call (null, the default,
+         * means no bound). A handler that has not answered in time fails the call
+         * and is told to stop, but stopping is cooperative: it may still finish
+         * and commit its side effect, and the caller may retry. Make bounded
+         * handlers idempotent. Must be positive when set. Intents declared
          * `longRunning` are never bounded.
          */
         fun initialize(
             channel: MethodChannel,
-            executionTimeoutMillis: Long = DEFAULT_EXECUTION_TIMEOUT_MILLIS
+            executionTimeoutMillis: Long? = null
         ) {
-            require(executionTimeoutMillis > 0) {
-                "executionTimeoutMillis must be positive; pass Long.MAX_VALUE to lift the bound"
+            require(executionTimeoutMillis == null || executionTimeoutMillis > 0) {
+                "executionTimeoutMillis must be positive, or null for no bound"
             }
             instance = AppFunctionsBridge(channel, executionTimeoutMillis)
         }
@@ -90,9 +88,9 @@ class AppFunctionsBridge private constructor(
     }
 
     /**
-     * Runs the Dart handler for [identifier]. Bounded by the timeout passed
-     * to [initialize] unless [longRunning] is set, which the generated code
-     * does for intents declared `@IntentSpec(longRunning: true)`.
+     * Runs the Dart handler for [identifier]. Bounded only when [initialize]
+     * was given a timeout and [longRunning] is not set; the generated code sets
+     * it for intents declared `@IntentSpec(longRunning: true)`.
      */
     suspend fun executeIntent(
         identifier: String,
@@ -100,25 +98,26 @@ class AppFunctionsBridge private constructor(
         longRunning: Boolean = false
     ): String = withContext(Dispatchers.Main) {
         val executionId = UUID.randomUUID().toString()
-        if (longRunning) {
+        val timeout = executionTimeoutMillis
+        if (longRunning || timeout == null) {
             awaitDartReply(identifier, params, executionId)
         } else {
             try {
-                withTimeout(executionTimeoutMillis) {
+                withTimeout(timeout) {
                     awaitDartReply(identifier, params, executionId)
                 }
             } catch (e: TimeoutCancellationException) {
                 // Not left as a CancellationException: the AppFunctions dispatcher
                 // would report that as a cancellation by the caller, not a failure.
                 throw RuntimeException(
-                    "Intent $identifier timed out after ${executionTimeoutMillis}ms", e
+                    "Intent $identifier timed out after ${timeout}ms", e
                 )
             }
         }
     }
 
     /**
-     * One MethodChannel round trip. Opens a Dart execution scope (#130) under
+     * One MethodChannel round trip. Opens a Dart execution scope under
      * [executionId] so the handler is told when the call is abandoned.
      */
     private suspend fun awaitDartReply(

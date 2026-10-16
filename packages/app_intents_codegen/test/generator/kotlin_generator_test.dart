@@ -825,45 +825,47 @@ void main() {
         );
       });
 
-      test('bounds each call with a configurable timeout', () {
+      test('leaves calls unbounded unless a timeout is opted into', () {
         final result = generator.generateBridge();
 
-        expect(
-          result,
-          contains('const val DEFAULT_EXECUTION_TIMEOUT_MILLIS = 30_000L'),
-        );
-        expect(
-          result,
-          contains(
-            'executionTimeoutMillis: Long = DEFAULT_EXECUTION_TIMEOUT_MILLIS',
-          ),
-        );
+        // Unbounded by default, like the iOS bridge: a timed-out handler may
+        // still commit its side effect, so the bound must be a deliberate choice.
+        expect(result, contains('executionTimeoutMillis: Long? = null'));
+        expect(result, isNot(contains('DEFAULT_EXECUTION_TIMEOUT_MILLIS')));
         expect(
           result,
           contains(
             'instance = AppFunctionsBridge(channel, executionTimeoutMillis)',
           ),
         );
-        // Zero or negative would make every call fail at once; Long.MAX_VALUE
-        // is the documented way to lift the bound.
-        expect(result, contains('require(executionTimeoutMillis > 0) {'));
-        expect(result, contains('withTimeout(executionTimeoutMillis) {'));
+        expect(
+          result,
+          contains(
+            'require(executionTimeoutMillis == null || executionTimeoutMillis > 0) {',
+          ),
+        );
+        expect(result, contains('if (longRunning || timeout == null) {'));
+        expect(result, contains('withTimeout(timeout) {'));
         // A TimeoutCancellationException is a CancellationException, which the
         // AppFunctions dispatcher would report as "cancelled by the caller".
         expect(result, contains('} catch (e: TimeoutCancellationException) {'));
         expect(
           result,
-          contains(
-            '"Intent \$identifier timed out after \${executionTimeoutMillis}ms", e',
-          ),
+          contains('"Intent \$identifier timed out after \${timeout}ms", e'),
         );
+      });
+
+      test('keeps issue numbers out of the generated KDoc', () {
+        final result = generator.generateBridge();
+
+        expect(result, isNot(matches(RegExp(r'\(#\d+'))));
       });
 
       test('skips the timeout when the caller marks the call longRunning', () {
         final result = generator.generateBridge();
 
         expect(result, contains('longRunning: Boolean = false'));
-        expect(result, contains('if (longRunning) {'));
+        expect(result, contains('if (longRunning || timeout == null) {'));
         // Both paths share one MethodChannel round trip.
         expect(result, contains('private suspend fun awaitDartReply('));
         expect(

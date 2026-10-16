@@ -37,10 +37,6 @@ class KotlinGenerator {
   /// params and uses it to route an `intentCancelled` notice.
   static const _executionIdKey = '_executionId';
 
-  /// Upper bound for one AppFunction call, in milliseconds, unless the host
-  /// app passes its own value to `AppFunctionsBridge.initialize`.
-  static const defaultExecutionTimeoutMillis = 30000;
-
   /// Dart `AppIntentErrorCode` names and the `androidx.appfunctions` exception
   /// the generated bridge raises for each (verified against 1.0.0-alpha13).
   ///
@@ -359,7 +355,7 @@ class KotlinGenerator {
       }
     }
     // A long-running intent (`@IntentSpec(longRunning: true)`) is exempt from
-    // the bridge's per-call timeout: it declared that it needs the time.
+    // the bridge's opt-in per-call timeout: it declared that it needs the time.
     final longRunningArg = info.longRunning ? ', longRunning = true' : '';
     buffer.writeln(
       '$prefix${_indent}return bridge.executeIntent("${info.identifier}", params$longRunningArg)',
@@ -493,56 +489,54 @@ class KotlinGenerator {
     buffer.writeln(' * before any AppFunction methods are invoked.');
     buffer.writeln(' *');
     buffer.writeln(
-      ' * Every call is bounded by the timeout passed to [initialize] (except for',
+      ' * Calls are unbounded unless [initialize] is given a timeout. Either way the',
     );
     buffer.writeln(
-      ' * intents declared `longRunning`) and tells Dart when it is abandoned',
+      ' * bridge tells Dart when a call is abandoned (timeout or caller cancellation),',
     );
     buffer.writeln(
-      ' * (timeout or caller cancellation), so a handler can stop early through',
+      ' * so a handler can stop early through `AppIntentExecution.current`.',
     );
-    buffer.writeln(' * `AppIntentExecution.current` (#130).');
     buffer.writeln(' */');
     buffer.writeln('class AppFunctionsBridge private constructor(');
     buffer.writeln('${_indent}private val channel: MethodChannel,');
-    buffer.writeln('${_indent}private val executionTimeoutMillis: Long');
+    buffer.writeln('${_indent}private val executionTimeoutMillis: Long?');
     buffer.writeln(') {');
     buffer.writeln();
     buffer.writeln('${_indent}companion object {');
-    buffer.writeln(
-      '$_indent$_indent/** Default upper bound for one AppFunction call, in milliseconds. */',
-    );
-    buffer.writeln(
-      '$_indent${_indent}const val DEFAULT_EXECUTION_TIMEOUT_MILLIS = ${_kotlinLongLiteral(defaultExecutionTimeoutMillis)}',
-    );
-    buffer.writeln();
     buffer.writeln(
       '$_indent${_indent}private var instance: AppFunctionsBridge? = null',
     );
     buffer.writeln();
     buffer.writeln('$_indent$_indent/**');
     buffer.writeln(
-      '$_indent$_indent * [executionTimeoutMillis] bounds each call; a handler that has not',
+      '$_indent$_indent * [executionTimeoutMillis] optionally bounds each call (null, the default,',
     );
     buffer.writeln(
-      '$_indent$_indent * answered by then fails the call and is told to stop. Must be positive;',
+      '$_indent$_indent * means no bound). A handler that has not answered in time fails the call',
     );
     buffer.writeln(
-      '$_indent$_indent * pass `Long.MAX_VALUE` to lift the bound. Intents declared',
+      '$_indent$_indent * and is told to stop, but stopping is cooperative: it may still finish',
+    );
+    buffer.writeln(
+      '$_indent$_indent * and commit its side effect, and the caller may retry. Make bounded',
+    );
+    buffer.writeln(
+      '$_indent$_indent * handlers idempotent. Must be positive when set. Intents declared',
     );
     buffer.writeln('$_indent$_indent * `longRunning` are never bounded.');
     buffer.writeln('$_indent$_indent */');
     buffer.writeln('$_indent${_indent}fun initialize(');
     buffer.writeln('$_indent$_indent${_indent}channel: MethodChannel,');
     buffer.writeln(
-      '$_indent$_indent${_indent}executionTimeoutMillis: Long = DEFAULT_EXECUTION_TIMEOUT_MILLIS',
+      '$_indent$_indent${_indent}executionTimeoutMillis: Long? = null',
     );
     buffer.writeln('$_indent$_indent) {');
     buffer.writeln(
-      '$_indent$_indent${_indent}require(executionTimeoutMillis > 0) {',
+      '$_indent$_indent${_indent}require(executionTimeoutMillis == null || executionTimeoutMillis > 0) {',
     );
     buffer.writeln(
-      '$_indent$_indent$_indent$_indent"executionTimeoutMillis must be positive; pass Long.MAX_VALUE to lift the bound"',
+      '$_indent$_indent$_indent$_indent"executionTimeoutMillis must be positive, or null for no bound"',
     );
     buffer.writeln('$_indent$_indent$_indent}');
     buffer.writeln(
@@ -562,13 +556,13 @@ class KotlinGenerator {
     buffer.writeln();
     buffer.writeln('$_indent/**');
     buffer.writeln(
-      '$_indent * Runs the Dart handler for [identifier]. Bounded by the timeout passed',
+      '$_indent * Runs the Dart handler for [identifier]. Bounded only when [initialize]',
     );
     buffer.writeln(
-      '$_indent * to [initialize] unless [longRunning] is set, which the generated code',
+      '$_indent * was given a timeout and [longRunning] is not set; the generated code sets',
     );
     buffer.writeln(
-      '$_indent * does for intents declared `@IntentSpec(longRunning: true)`.',
+      '$_indent * it for intents declared `@IntentSpec(longRunning: true)`.',
     );
     buffer.writeln('$_indent */');
     buffer.writeln('${_indent}suspend fun executeIntent(');
@@ -579,15 +573,14 @@ class KotlinGenerator {
     buffer.writeln(
       '$_indent${_indent}val executionId = UUID.randomUUID().toString()',
     );
-    buffer.writeln('$_indent${_indent}if (longRunning) {');
+    buffer.writeln('$_indent${_indent}val timeout = executionTimeoutMillis');
+    buffer.writeln('$_indent${_indent}if (longRunning || timeout == null) {');
     buffer.writeln(
       '$_indent$_indent${_indent}awaitDartReply(identifier, params, executionId)',
     );
     buffer.writeln('$_indent$_indent} else {');
     buffer.writeln('$_indent$_indent${_indent}try {');
-    buffer.writeln(
-      '$_indent$_indent$_indent${_indent}withTimeout(executionTimeoutMillis) {',
-    );
+    buffer.writeln('$_indent$_indent$_indent${_indent}withTimeout(timeout) {');
     buffer.writeln(
       '$_indent$_indent$_indent$_indent${_indent}awaitDartReply(identifier, params, executionId)',
     );
@@ -603,7 +596,7 @@ class KotlinGenerator {
     );
     buffer.writeln('$_indent$_indent$_indent${_indent}throw RuntimeException(');
     buffer.writeln(
-      '$_indent$_indent$_indent$_indent$_indent"Intent \$identifier timed out after \${executionTimeoutMillis}ms", e',
+      '$_indent$_indent$_indent$_indent$_indent"Intent \$identifier timed out after \${timeout}ms", e',
     );
     buffer.writeln('$_indent$_indent$_indent$_indent)');
     buffer.writeln('$_indent$_indent$_indent}');
@@ -612,7 +605,7 @@ class KotlinGenerator {
     buffer.writeln();
     buffer.writeln('$_indent/**');
     buffer.writeln(
-      '$_indent * One MethodChannel round trip. Opens a Dart execution scope (#130) under',
+      '$_indent * One MethodChannel round trip. Opens a Dart execution scope under',
     );
     buffer.writeln(
       '$_indent * [executionId] so the handler is told when the call is abandoned.',
@@ -696,18 +689,6 @@ class KotlinGenerator {
     buffer.writeln();
     _generateErrorMapping(buffer);
     buffer.writeln('}');
-  }
-
-  /// Renders [value] as a Kotlin `Long` literal with digit grouping
-  /// (e.g. `30_000L`), matching the style of hand-written Kotlin.
-  String _kotlinLongLiteral(int value) {
-    final digits = value.toString();
-    final grouped = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) grouped.write('_');
-      grouped.write(digits[i]);
-    }
-    return '${grouped}L';
   }
 
   /// Generates `toAppFunctionException`, which turns a Dart `AppIntentError`

@@ -143,16 +143,28 @@ class MainActivity : FlutterActivity() {
 }
 ```
 
-AppFunction の呼び出しは 1 回ごとにタイムアウト（既定 30 秒）で打ち切られます。時間切れになると
-呼び出しは `Intent <identifier> timed out after <n>ms` で失敗し、Dart ハンドラにも停止が通知されます
-（[長時間実行 Intent](#長時間実行-intent-の進捗とキャンセル-130) を参照）。
-`@IntentSpec(longRunning: true)` を付けた Intent は対象外で、生成される関数は上限なしでブリッジを
-呼びます。それ以外で本来もっと時間のかかるハンドラがあるなら `initialize` に別の上限を渡してください。
-正の値である必要があり、`Long.MAX_VALUE` で上限を外せます:
+AppFunction の呼び出しには、iOS と同じく既定では時間制限がありません。上限を設けるには
+`initialize` に正の `executionTimeoutMillis` を渡します:
 
 ```kotlin
-AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 60_000L)
+AppFunctionsBridge.initialize(plugin.getChannel(), executionTimeoutMillis = 30_000L)
 ```
+
+上限を過ぎると呼び出しは `Intent <identifier> timed out after <n>ms` で失敗し、Dart ハンドラにも
+停止が通知されます（[長時間実行 Intent](#長時間実行-intent-の進捗とキャンセル-130) を参照）。停止は
+協調的なので、ハンドラは多くの場合そのまま動き続け、呼び出し側が失敗を受け取ったあとで副作用
+（タスクの作成、メッセージの送信など）を確定させることがあります。エージェントが再試行すると重複が
+生じます。**タイムアウトを設定するのは、対象のハンドラが冪等な場合だけにしてください。** または確定の
+前に `AppIntentExecution.current?.isCancelled` を確認してください。
+
+`@IntentSpec(longRunning: true)` を付けた Intent は上限の対象外で、生成される関数はブリッジに
+`longRunning = true` を渡します。同じフラグは WWDC26 の実験的なコード生成を有効にしたとき Swift
+側で `LongRunningIntent` の生成にも使われるため、両プラットフォームの挙動が変わります。
+
+> **再生成とアップグレードは同時に。** `app_intents_codegen` 0.19.0 以降が生成する Kotlin は
+> 呼び出しごとに実行スコープを開くため、Android 側の `app_intents` も 0.19.0 以降が必要です。
+> 古いプラグインは `requestIntentValue` に応答しないので、`requestValue` が `null` にならずハンドラが
+> 失敗します。
 
 #### minSdk を上げずに済む仕組み
 
@@ -1558,11 +1570,12 @@ Future<void> exportTasksHandler({required String format}) async {
 っぱなしにした処理を外側から畳むときに使えます。
 
 Android では生成される `AppFunctionsBridge` が **すべての** AppFunction 呼び出しで実行スコープを
-開くので、`AppIntentExecution.current` が null になることはありません。呼び出しごとのタイムアウトが
-切れたとき（`reason: timeout`。`longRunning` を付けた Intent にはタイムアウトがありません）、または
-呼び出し側が AppFunction をキャンセルしたとき（`reason: cancelled`）に `isCancelled` が true に
-なります。その時点で Kotlin 側は既に呼び出しを失敗として返しているので、ハンドラが処理を続けても
-アプリの時間を消費するだけです。Android では `reportProgress` は何もせず、`requestValue` は
+開くので、`AppIntentExecution.current` が null になることはありません。オプトインした呼び出しごとの
+タイムアウトが切れたとき（`reason: timeout`。`longRunning` を付けた Intent には上限がありません）、
+または呼び出し側が AppFunction をキャンセルしたとき（`reason: cancelled`）に `isCancelled` が true に
+なります。その時点で Kotlin 側は既に呼び出しを失敗として返していますが、処理を続けたハンドラが副作用を
+確定させ、呼び出し側が再試行することはあり得ます。確定の前に `isCancelled` を確認するか、ハンドラを
+冪等にしてください。Android では `reportProgress` は何もせず、`requestValue` は
 AppFunctions に表示できるプロンプトが無いため `null` を返します。下の
 `note ?? await …requestValue` のパターンは Android ではそのまま `null` になります。
 
