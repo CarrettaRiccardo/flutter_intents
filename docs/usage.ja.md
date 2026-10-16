@@ -257,6 +257,8 @@ await FlutterBridge.shared.setExecutorWaitTimeout(8)  // 秒
 
 現在の値は `await FlutterBridge.shared.executorWaitTimeout` で読めます。1 つの値が Intent 実行、
 エンティティクエリ、サジェスト、値クエリのすべてに適用され、`clearExecutors()` ではリセットされません。
+本番では `.infinity` を避けてください。エンジンが起動しないままだと、Siri やショートカットはエラーを
+受け取らずに永遠に待ち続けます。
 
 #### FlutterBridge waitForPlugin パターン
 

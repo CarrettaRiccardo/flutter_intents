@@ -266,7 +266,9 @@ await FlutterBridge.shared.setExecutorWaitTimeout(8)  // seconds
 
 Read it back with `await FlutterBridge.shared.executorWaitTimeout`. One value
 covers intent execution, entity queries, suggested entities and value queries,
-and `clearExecutors()` leaves it untouched.
+and `clearExecutors()` leaves it untouched. Avoid `.infinity` in production: if
+the engine never comes up, Siri or Shortcuts waits forever instead of getting
+an error.
 
 #### FlutterBridge waitForPlugin Pattern
 

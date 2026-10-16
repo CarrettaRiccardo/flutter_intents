@@ -96,8 +96,9 @@ public actor FlutterBridge {
     /// the forward executors: this module cannot see the plugin.
     private var cancellationNotifier: (@Sendable (sending String, sending String) async -> Void)?
 
-    /// Private initializer to enforce singleton pattern
-    private init() {}
+    /// Use ``shared``; the initializer is internal only so tests can read a
+    /// fresh instance's defaults.
+    init() {}
 
     /// Clears all registered executors.
     ///
@@ -179,7 +180,9 @@ public actor FlutterBridge {
     /// - Parameter seconds: The new maximum wait. Negative values are treated
     ///   as zero, which makes every wait fail immediately while no executor is
     ///   set. `.infinity` (or any value past `Int.max` polls) waits until an
-    ///   executor appears.
+    ///   executor appears. Avoid `.infinity` in production: if the Flutter
+    ///   engine never comes up, Siri or Shortcuts waits forever instead of
+    ///   getting an error. Prefer a generous finite value.
     public func setExecutorWaitTimeout(_ seconds: TimeInterval) {
         executorWaitTimeout = max(0, seconds)
     }
