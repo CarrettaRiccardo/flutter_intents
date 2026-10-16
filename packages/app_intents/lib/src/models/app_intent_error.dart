@@ -6,8 +6,9 @@
 /// A handler reports one by throwing `AppIntentError.fromCode(...)`. The code
 /// crosses the MethodChannel unchanged, as the `PlatformException` code, so the
 /// native side can turn it into a typed error. On Android the generated
-/// `AppFunctionsBridge` maps the codes below to the matching
-/// `androidx.appfunctions` exception; any other code becomes
+/// `AppFunctionsBridge` maps the codes that have an AppFunctions counterpart
+/// to the matching `androidx.appfunctions` exception; every other code,
+/// including `networkError` and `unknown`, becomes
 /// `AppFunctionAppUnknownException` with the code kept in its message. That
 /// table lives in `KotlinGenerator.appFunctionExceptionByErrorCode` in the
 /// codegen package and is keyed by these enum names, so renaming a value here
