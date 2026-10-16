@@ -359,7 +359,7 @@ struct AppShortcuts: AppShortcutsProvider {
 
 | 項目 | 要件 |
 |------|------|
-| **Android最小バージョン** | API 36 (Android 16) |
+| **Android最小バージョン** | ホストアプリの `minSdk` のまま（Flutter のデフォルトは 24）。AppFunctions は API 36 (Android 16) 以降でのみ提供: 生成サービスは `@RequiresApi(36)` で、`@bool/app_intents_app_functions_service_enabled` により API 36 未満では無効 |
 | **Kotlin** | 2.2+ |
 | **Jetpack AppFunctions** | 1.0.0-alpha12（`@AppFunctionServiceEntryPoint` 方式。`appfunctions-service` は不使用 — 詳細は `CLAUDE.md` 参照） |
 
@@ -371,6 +371,7 @@ struct AppShortcuts: AppShortcutsProvider {
 | コード生成 | KSPベースの`@AppFunction`アノテーション処理 |
 | Entity直列化 | `@AppFunctionSerializable`データクラス |
 | 呼び出しタイムアウト / キャンセル | 生成される `AppFunctionsBridge` が呼び出しごとに上限を設ける（既定 30 秒、`initialize` で変更。`longRunning` な Intent は対象外）。タイムアウトと呼び出し側のキャンセルは `intentCancelled` として Dart ハンドラに届く |
+| エラー報告 | Dartの`AppIntentErrorCode`を対応する`androidx.appfunctions`例外へ変換（明示的な対応がないコードは`AppFunctionAppUnknownException`） |
 
 ## 今後の拡張ポイント
 

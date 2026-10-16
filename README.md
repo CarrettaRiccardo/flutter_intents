@@ -113,6 +113,11 @@ dart run app_intents_codegen:generate_swift -i lib -o ios/Runner/GeneratedIntent
 dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotlin/com/example/app/generated -p com.example.app.generated
 ```
 
+Android hosts that reference `AppIntentsPlugin` in their own native code
+(for example AppFunctions wiring in `MainActivity`) must update the import to
+`dev.touyou.app_intents.AppIntentsPlugin` and run `flutter pub get`.
+Generated Kotlin is unaffected.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) - Design philosophy and system overview
@@ -124,7 +129,7 @@ dart run app_intents_codegen:generate_kotlin -i lib -o android/app/src/main/kotl
 - **Dart SDK**: ^3.10.0
 - **Flutter**: 3.3+
 - **iOS**: 17.0+ (App Intents), Swift 5.9+
-- **Android**: API 36+ (Android 16, AppFunctions)
+- **Android**: your app's existing `minSdk` (Flutter default 24); AppFunctions are served on API 36+ (Android 16) only
 
 ## Contributing
 

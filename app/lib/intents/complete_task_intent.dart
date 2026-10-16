@@ -11,6 +11,9 @@ part 'complete_task_intent.intent.dart';
   identifier: 'com.example.taskapp.completeTask',
   title: 'Complete Task',
   description: 'Mark a task as completed',
+  // Completing a task changes the user's data, so ask for the device to be
+  // unlocked first; the system default lets an intent run while locked.
+  authenticationPolicy: IntentAuthentication.requiresAuthentication,
   urlScheme: 'taskapp',
   urlAction: 'complete',
   // Siri speaks the full line; when it also shows the result it puts the
@@ -32,6 +35,17 @@ class CompleteTaskIntentSpec extends IntentSpecBase {
 }
 
 /// Handler for the CompleteTask intent.
-Future<Task?> completeTaskIntentHandler({required String task}) async {
-  return TaskRepository.instance.toggleTaskCompletion(task);
+///
+/// Reports a missing task with a well-known error code. The code crosses the
+/// MethodChannel unchanged, so on Android the caller receives an
+/// `AppFunctionElementNotFoundException` instead of a generic failure.
+Future<Task> completeTaskIntentHandler({required String task}) async {
+  final toggled = await TaskRepository.instance.toggleTaskCompletion(task);
+  if (toggled == null) {
+    throw AppIntentError.fromCode(
+      AppIntentErrorCode.notFound,
+      message: 'No task with id $task',
+    );
+  }
+  return toggled;
 }

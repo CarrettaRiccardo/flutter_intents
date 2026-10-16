@@ -41,6 +41,52 @@ class KotlinGenerator {
   /// app passes its own value to `AppFunctionsBridge.initialize`.
   static const defaultExecutionTimeoutMillis = 30000;
 
+  /// Dart `AppIntentErrorCode` names and the `androidx.appfunctions` exception
+  /// the generated bridge raises for each (verified against 1.0.0-alpha13).
+  ///
+  /// The KSP-generated service passes an `AppFunctionException` through to the
+  /// caller unchanged and turns any other exception into
+  /// `AppFunctionAppUnknownException`, so this is what gives an AI agent a
+  /// typed error category. The keys duplicate `AppIntentErrorCode.name` in the
+  /// `app_intents` plugin on purpose — this package cannot depend on Flutter —
+  /// so the two lists move together. Codes not listed here fall back to
+  /// [fallbackAppFunctionException] with the code kept in the message.
+  static const appFunctionExceptionByErrorCode = <String, String>{
+    'invalidParameters': 'AppFunctionInvalidArgumentException',
+    'notFound': 'AppFunctionElementNotFoundException',
+    'alreadyExists': 'AppFunctionElementAlreadyExistsException',
+    'denied': 'AppFunctionDeniedException',
+    'permissionRequired': 'AppFunctionPermissionRequiredException',
+    'notSupported': 'AppFunctionNotSupportedException',
+    'disabled': 'AppFunctionDisabledException',
+    'limitExceeded': 'AppFunctionLimitExceededException',
+    // The function exists (KSP registered it); the app has not wired its Dart
+    // handler. An app-side problem, not a function the agent mis-named.
+    'handlerNotFound': 'AppFunctionAppUnknownException',
+    // Same class the dispatcher uses for a cancellation by the caller.
+    'userCancelled': 'AppFunctionCancelledException',
+  };
+
+  /// Exception raised for codes outside [appFunctionExceptionByErrorCode].
+  static const fallbackAppFunctionException = 'AppFunctionAppUnknownException';
+
+  /// Lowest Android API level that has AppFunctions (Android 16).
+  ///
+  /// `androidx.appfunctions.AppFunctionService` is `@RequiresApi(36)`, so the
+  /// generated service carries the same gate. This keeps the host app's
+  /// `minSdk` untouched: the service is simply never instantiated below it.
+  static const appFunctionsMinApiLevel = 36;
+
+  /// Name of the `bool` resource the `app_intents` plugin ships (`false` by
+  /// default, `true` in `values-v36/`). The host's manifest entry for
+  /// [serviceName] must set `android:enabled="@bool/<this>"` so the service is
+  /// disabled on devices below [appFunctionsMinApiLevel]. The attribute is
+  /// required: the service is exported, and below that level its bind
+  /// permission is not platform-defined, so another app could bind it and
+  /// crash the host on class load.
+  static const serviceEnabledBoolResource =
+      'app_intents_app_functions_service_enabled';
+
   /// Converts a Dart type to its Kotlin equivalent.
   ///
   /// Handles nullable types by preserving the `?` suffix.
@@ -127,6 +173,7 @@ class KotlinGenerator {
     // Imports
     final imports = <String>{};
     if (intents.isNotEmpty) {
+      imports.add('import androidx.annotation.RequiresApi');
       imports.add('import androidx.appfunctions.AppFunctionDeclaration');
       imports.add('import androidx.appfunctions.AppFunctionService');
       imports.add('import androidx.appfunctions.AppFunctionServiceEntryPoint');
@@ -136,6 +183,11 @@ class KotlinGenerator {
     }
     imports.add('import android.os.Handler');
     imports.add('import android.os.Looper');
+    imports.add('import androidx.appfunctions.AppFunctionException');
+    imports.add('import androidx.appfunctions.$fallbackAppFunctionException');
+    for (final exception in appFunctionExceptionByErrorCode.values) {
+      imports.add('import androidx.appfunctions.$exception');
+    }
     imports.add('import io.flutter.plugin.common.MethodChannel');
     imports.add('import java.util.UUID');
     imports.add('import kotlinx.coroutines.Dispatchers');
@@ -193,7 +245,25 @@ class KotlinGenerator {
       ' * Generated AppFunctions from Flutter Intents annotations.',
     );
     buffer.writeln(' * DO NOT MODIFY BY HAND.');
+    buffer.writeln(' *');
+    buffer.writeln(
+      ' * AppFunctions exist on Android 16 (API $appFunctionsMinApiLevel) and later only; the host app',
+    );
+    buffer.writeln(
+      ' * keeps its own minSdk. The AndroidManifest.xml entry for [$serviceName]',
+    );
+    buffer.writeln(
+      ' * must set `android:enabled="@bool/$serviceEnabledBoolResource"`.',
+    );
+    buffer.writeln(
+      ' * The attribute is required: without it the exported service stays enabled',
+    );
+    buffer.writeln(
+      ' * below API $appFunctionsMinApiLevel, where another app could bind it and crash this app',
+    );
+    buffer.writeln(' * on class load.');
     buffer.writeln(' */');
+    buffer.writeln('@RequiresApi($appFunctionsMinApiLevel)');
     buffer.writeln('@AppFunctionServiceEntryPoint(');
     buffer.writeln('${_indent}serviceName = "$serviceName",');
     buffer.writeln(
@@ -581,7 +651,7 @@ class KotlinGenerator {
       '$_indent$_indent$_indent${_indent}override fun error(code: String, message: String?, details: Any?) {',
     );
     buffer.writeln(
-      '$_indent$_indent$_indent$_indent${_indent}cont.resumeWithException(RuntimeException("\$code: \$message"))',
+      '$_indent$_indent$_indent$_indent${_indent}cont.resumeWithException(toAppFunctionException(code, message))',
     );
     buffer.writeln('$_indent$_indent$_indent$_indent}');
     buffer.writeln();
@@ -589,7 +659,7 @@ class KotlinGenerator {
       '$_indent$_indent$_indent${_indent}override fun notImplemented() {',
     );
     buffer.writeln(
-      '$_indent$_indent$_indent$_indent${_indent}cont.resumeWithException(RuntimeException("Not implemented"))',
+      '$_indent$_indent$_indent$_indent${_indent}cont.resumeWithException($fallbackAppFunctionException("executeIntent is not implemented on the Dart side"))',
     );
     buffer.writeln('$_indent$_indent$_indent$_indent}');
     buffer.writeln('$_indent$_indent$_indent}');
@@ -623,6 +693,8 @@ class KotlinGenerator {
     buffer.writeln('$_indent$_indent$_indent)');
     buffer.writeln('$_indent$_indent}');
     buffer.writeln('$_indent}');
+    buffer.writeln();
+    _generateErrorMapping(buffer);
     buffer.writeln('}');
   }
 
@@ -636,6 +708,36 @@ class KotlinGenerator {
       grouped.write(digits[i]);
     }
     return '${grouped}L';
+  }
+
+  /// Generates `toAppFunctionException`, which turns a Dart `AppIntentError`
+  /// code into the matching `androidx.appfunctions` exception (see
+  /// [appFunctionExceptionByErrorCode]).
+  void _generateErrorMapping(StringBuffer buffer) {
+    buffer.writeln('$_indent/**');
+    buffer.writeln(
+      '$_indent * Maps a Dart `AppIntentError` code to the matching AppFunctions exception,',
+    );
+    buffer.writeln(
+      '$_indent * so the caller receives a typed error category instead of a generic failure.',
+    );
+    buffer.writeln(
+      '$_indent * Unknown codes become [$fallbackAppFunctionException] with the code kept in the message.',
+    );
+    buffer.writeln('$_indent */');
+    buffer.writeln('${_indent}private fun toAppFunctionException(');
+    buffer.writeln('$_indent${_indent}code: String,');
+    buffer.writeln('$_indent${_indent}message: String?');
+    buffer.writeln('$_indent): AppFunctionException = when (code) {');
+    for (final entry in appFunctionExceptionByErrorCode.entries) {
+      buffer.writeln(
+        '$_indent$_indent"${entry.key}" -> ${entry.value}(message)',
+      );
+    }
+    buffer.writeln(
+      '$_indent${_indent}else -> $fallbackAppFunctionException("\$code: \$message")',
+    );
+    buffer.writeln('$_indent}');
   }
 
   /// Formats text for KDoc comments, handling multiline descriptions.

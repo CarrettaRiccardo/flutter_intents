@@ -788,6 +788,43 @@ void main() {
         expect(result, contains('override fun notImplemented()'));
       });
 
+      test('maps Dart error codes to AppFunctions exceptions', () {
+        final result = generator.generateBridge();
+
+        expect(result, contains('private fun toAppFunctionException('));
+        expect(result, contains('): AppFunctionException = when (code) {'));
+        expect(
+          result,
+          contains(
+            'cont.resumeWithException(toAppFunctionException(code, message))',
+          ),
+        );
+        for (final entry
+            in KotlinGenerator.appFunctionExceptionByErrorCode.entries) {
+          expect(result, contains('"${entry.key}" -> ${entry.value}(message)'));
+        }
+        expect(
+          result,
+          contains(
+            r'else -> AppFunctionAppUnknownException("$code: $message")',
+          ),
+        );
+        // The old untyped envelope is gone; a typed exception carries the code.
+        expect(result, isNot(contains(r'RuntimeException("$code: $message")')));
+      });
+
+      test('reports a missing Dart implementation as an app error', () {
+        final result = generator.generateBridge();
+
+        expect(
+          result,
+          contains(
+            'AppFunctionAppUnknownException('
+            '"executeIntent is not implemented on the Dart side")',
+          ),
+        );
+      });
+
       test('bounds each call with a configurable timeout', () {
         final result = generator.generateBridge();
 
@@ -933,6 +970,26 @@ void main() {
         expect(result, contains('import kotlinx.coroutines.Dispatchers'));
       });
 
+      test('imports the AppFunctions exceptions the bridge raises', () {
+        // The bridge is emitted even without intents, so the imports are too.
+        final result = generator.generateAll(packageName: 'com.example.app');
+
+        expect(
+          result,
+          contains('import androidx.appfunctions.AppFunctionException\n'),
+        );
+        expect(
+          result,
+          contains(
+            'import androidx.appfunctions.AppFunctionAppUnknownException\n',
+          ),
+        );
+        for (final exception
+            in KotlinGenerator.appFunctionExceptionByErrorCode.values) {
+          expect(result, contains('import androidx.appfunctions.$exception\n'));
+        }
+      });
+
       test('includes AppFunctionSerializable import for entities', () {
         final result = generator.generateAll(
           packageName: 'com.example.app',
@@ -1063,6 +1120,51 @@ void main() {
         expect(result, contains('suspend fun completeTask('));
       });
 
+      test('gates GeneratedAppFunctions behind @RequiresApi(36)', () {
+        // androidx.appfunctions.AppFunctionService is @RequiresApi(36). Without
+        // this gate Android lint fails (NewApi) for any host whose minSdk is
+        // below Android 16, which is every published app that did not raise
+        // minSdk just for AppFunctions.
+        final result = generator.generateAll(
+          packageName: 'com.example.app',
+          intents: [
+            IntentInfo(
+              className: 'GreetIntent',
+              identifier: 'com.example.greet',
+              title: 'Greet',
+              implementation: IntentImplementationType.dart,
+              parameters: [],
+            ),
+          ],
+        );
+
+        expect(KotlinGenerator.appFunctionsMinApiLevel, 36);
+        expect(result, contains('import androidx.annotation.RequiresApi\n'));
+        expect(
+          result,
+          contains(
+            '@RequiresApi(36)\n'
+            '@AppFunctionServiceEntryPoint(\n',
+          ),
+        );
+        // The KDoc tells the host which manifest switch keeps the service off
+        // below API 36 and that it is required; the name must match the bool
+        // the plugin ships.
+        expect(
+          KotlinGenerator.serviceEnabledBoolResource,
+          'app_intents_app_functions_service_enabled',
+        );
+        expect(
+          result,
+          contains(
+            ' * must set `android:enabled="@bool/app_intents_app_functions_service_enabled"`.\n'
+            ' * The attribute is required: without it the exported service stays enabled\n'
+            ' * below API 36, where another app could bind it and crash this app\n'
+            ' * on class load.\n',
+          ),
+        );
+      });
+
       test('generates combined output with all types', () {
         final result = generator.generateAll(
           packageName: 'com.example.app',
@@ -1144,6 +1246,7 @@ void main() {
 
         expect(result, isNot(contains('class GeneratedAppFunctions')));
         expect(result, isNot(contains('AppFunctionServiceEntryPoint')));
+        expect(result, isNot(contains('RequiresApi')));
         expect(
           result,
           isNot(
