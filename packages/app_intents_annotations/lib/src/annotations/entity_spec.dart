@@ -53,8 +53,9 @@ class EntitySpec {
   /// ## Cold-start motivation
   /// When iOS kills the host app and Siri/Shortcuts fires an EntityQuery,
   /// `FlutterBridge` waits up to its `executorWaitTimeout` (5 seconds by
-  /// default, configurable) for the Flutter executor to be registered. On a real cold start, that timeout can be exhausted before
-  /// the engine is ready, surfacing as a generic "internal error". The cache
+  /// default, configurable) for the Flutter executor to be registered. On a
+  /// real cold start, that timeout can be exhausted before the engine is
+  /// ready, surfacing as a generic "internal error". The cache
   /// lookup runs synchronously and short-circuits this path when the data is
   /// already in App Group UserDefaults.
   ///

@@ -154,7 +154,13 @@ struct FlutterBridgeTests {
             await bridge.setIntentExecutor { identifier, _ in identifier }
 
             let start = ContinuousClock.now
-            let result = try await waiter.value
+            // `waiter` is unstructured, so the time limit's cancellation must be
+            // forwarded or a hung wait would keep the test from returning.
+            let result = try await withTaskCancellationHandler {
+                try await waiter.value
+            } onCancel: {
+                waiter.cancel()
+            }
             #expect(result == "LateExecutorIntent")
             #expect(ContinuousClock.now - start < .seconds(2))
         }
